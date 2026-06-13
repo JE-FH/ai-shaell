@@ -1,0 +1,13 @@
+You are to implement a full implementation of the shaell interpreter in rust. This will be a big task, you will have to do it in steps.
+I have included a text version of the whitepaper for shaell in "shæll whitepaper.txt" which covers a proof of concept C# version of the shaell interpreter.
+The reference paper uses Antlr4 as the parser + lexer, however you are free to choose what you want to use, install a dependency or implement it yourself.
+I would suggest not using Antlr4 since it uses java which is outside the rust ecosystem.
+You should also decide yourself if you want to compile to some bytecode or just interpret directly.
+You are running in a VM, so everything you do will be safe except for network. The user can use sudo and the password is aiman
+
+You should proceed by:
+1. Reading the whitepaper carefully and writing a notes file describing how the shaell language works. Keep this file updated as your source of truth.
+2. Coming up with your own detailed implementation plan and breaking the work into manageable steps.
+3. Working through that plan step by step, testing frequently and keeping the implementation faithful to the whitepaper.
+
+You have full freedom over the design decisions (parsing approach, project structure, interpretation strategy, etc.). Make sensible choices, document them, and proceed.

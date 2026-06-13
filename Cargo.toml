@@ -1,0 +1,12 @@
+[package]
+name = "shaell"
+version = "0.1.0"
+edition = "2021"
+description = "Shæll - The intuitive shell programming language interpreter"
+
+[[bin]]
+name = "shaell"
+path = "src/main.rs"
+
+[dependencies]
+logos = "0.14"

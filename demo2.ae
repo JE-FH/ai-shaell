@@ -1,0 +1,20 @@
+# Control flow — FizzBuzz using while loop
+let i = 1
+let output = ""
+while i <= 15 do
+    if i % 15 == 0 then
+        output = output + "FizzBuzz "
+    else
+        if i % 3 == 0 then
+            output = output + "Fizz "
+        else
+            if i % 5 == 0 then
+                output = output + "Buzz "
+            else
+                output = output + i + " "
+            end
+        end
+    end
+    i = i + 1
+end
+output

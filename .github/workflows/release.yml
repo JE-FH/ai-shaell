@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Release (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Build release binary
+        run: cargo build --release --verbose
+
+      - name: Run tests
+        run: cargo test --release --verbose
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shaell-${{ runner.os }}
+          path: |
+            target/release/shaell
+            target/release/shaell.exe
+          if-no-files-found: warn
+
+  github-release:
+    name: Create GitHub Release
+    needs: [release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | head -n 2 | tail -n 1 || true)
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "changelog=Initial release" >> "$GITHUB_OUTPUT"
+          else
+            echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
+            git log --pretty=format:"* %s (%h)" "$PREVIOUS_TAG"..HEAD >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          files: |
+            shaell-Linux/**
+            shaell-macOS/**
+            shaell-Windows/**
+          draft: false
+          prerelease: false

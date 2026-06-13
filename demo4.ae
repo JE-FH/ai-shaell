@@ -1,0 +1,17 @@
+# Tables and foreach
+let scores = {
+    alice = 95,
+    bob = 82,
+    carol = 78,
+    dave = 91
+}
+
+let total = 0
+let count = 0
+foreach name, score in scores do
+    total = total + score
+    count = count + 1
+end
+
+let average = total / count
+"Average score: ${average}"

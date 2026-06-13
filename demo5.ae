@@ -1,0 +1,11 @@
+# File operations demo
+let f = @"test_demo_file.txt"
+
+# Write to the file
+f:delete()
+f:append("Line one\n")
+f:append("Line two\n")
+f:append("Line three\n")
+
+# Read it back
+"File contents: ${f:readToEnd()}"

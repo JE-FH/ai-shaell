@@ -1,0 +1,6 @@
+# Arithmetic
+let x = 10
+let y = 25
+let sum = x + y
+let product = x * y
+"Arithmetic: ${x} + ${y} = ${sum}, ${x} * ${y} = ${product}"
