@@ -257,19 +257,24 @@ impl Value {
     pub fn index(&self, key: &Value, heap: &GcHeap) -> Result<ValueRef, RuntimeError> {
         match self {
             Value::Table(t) => {
-                if let Ok(s) = key.to_sstring() {
-                    if let Some(v) = t.fields.get(&s) {
-                        return Ok(*v);
+                match key {
+                    Value::Number(n) => {
+                        let idx = *n as usize;
+                        if idx < t.array.len() {
+                            Ok(t.array[idx])
+                        } else {
+                            Ok(heap.allocate(Value::Null))
+                        }
+                    }
+                    _ => {
+                        let s = key.to_sstring()?;
+                        if let Some(v) = t.fields.get(&s) {
+                            Ok(*v)
+                        } else {
+                            Ok(heap.allocate(Value::Null))
+                        }
                     }
                 }
-                if let Ok(n) = key.to_number() {
-                    let idx = n as usize;
-                    if idx < t.array.len() {
-                        return Ok(t.array[idx]);
-                    }
-                }
-                // Missing key returns a null value, not a null GcRef
-                Ok(heap.allocate(Value::Null))
             }
             Value::String(s) => {
                 let method = key.to_sstring()?;
@@ -306,19 +311,21 @@ impl Value {
     pub fn set_index(&mut self, key: &Value, val: ValueRef) -> Result<(), RuntimeError> {
         match self {
             Value::Table(t) => {
-                if let Ok(s) = key.to_sstring() {
-                    t.fields.insert(s, val);
-                    return Ok(());
-                }
-                if let Ok(n) = key.to_number() {
-                    let idx = n as usize;
-                    if idx >= t.array.len() {
-                        t.array.resize(idx + 1, GcRef::NULL);
+                match key {
+                    Value::Number(n) => {
+                        let idx = *n as usize;
+                        if idx >= t.array.len() {
+                            t.array.resize(idx + 1, GcRef::NULL);
+                        }
+                        t.array[idx] = val;
+                        Ok(())
                     }
-                    t.array[idx] = val;
-                    return Ok(());
+                    _ => {
+                        let s = key.to_sstring()?;
+                        t.fields.insert(s, val);
+                        Ok(())
+                    }
                 }
-                Err(RuntimeError::new("Invalid table key".to_string()))
             }
             _ => Err(RuntimeError::new(format!(
                 "Cannot set index on {}",

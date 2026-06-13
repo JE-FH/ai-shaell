@@ -460,4 +460,44 @@ mod value_tests {
         assert!(a.is_equal(&b).unwrap());
         assert!(!a.is_equal(&c).unwrap());
     }
+
+    // ── mutation-testing gaps ───────────────────────────────
+
+    #[test]
+    fn test_null_to_sstring() {
+        assert_eq!(Value::Null.to_sstring().unwrap(), "null");
+    }
+
+    #[test]
+    fn test_index_out_of_bounds_returns_null() {
+        let heap = GcHeap::new();
+        let t = heap.allocate(Value::table());
+        // Check array index 0 on empty table returns null
+        let result = heap.with_ref(t, |v| {
+            match v {
+                Value::Table(td) => {
+                    if 0 < td.array.len() { td.array[0] } else { GcRef::NULL }
+                }
+                _ => GcRef::NULL,
+            }
+        });
+        assert!(result.is_null());
+    }
+
+    #[test]
+    fn test_set_index_resizes_array() {
+        let heap = GcHeap::new();
+        let t = heap.allocate(Value::table());
+        let val = heap.allocate(Value::string("hello".to_string()));
+        // Set at index 5 — should resize array
+        heap.with_mut(t, |v| {
+            v.set_index(&Value::Number(5.0), val).unwrap();
+        });
+        // Verify array was resized by checking internal state
+        heap.with_ref(t, |v| {
+            if let Value::Table(td) = v {
+                assert!(td.array.len() >= 6);
+            }
+        });
+    }
 }

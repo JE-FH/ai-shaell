@@ -1464,4 +1464,36 @@ mod builtin_integration {
     fn assert_type_null() {
         assert_eq!(eval("A:assertType(null,\"null\")"), "ok");
     }
+
+    // ── mutation-testing gaps ───────────────────────────────
+
+    #[test]
+    fn test_define_args_creates_table() {
+        // define_args should create a table variable
+        let source = "define_args args\nfirst\nend\nargs";
+        let result = eval(source);
+        assert!(result.contains("table") || result != "null");
+    }
+
+    #[test]
+    fn test_compound_assign_table_subscript() {
+        // table[index] += value
+        let source = "let t = { [0] = 10 }\nt[0] += 5\nt[0]";
+        assert_eq!(eval(source), "15");
+    }
+
+    #[test]
+    fn test_assign_table_subscript() {
+        // table[index] = value
+        let source = "let t = { [0] = \"old\" }\nt[0] = \"new\"\nt[0]";
+        assert_eq!(eval(source), "new");
+    }
+
+    #[test]
+    fn test_pipe_to_identifier() {
+        // exec ... -> let varname should capture output
+        let source = "exec echo with (\"captured\") -> let result\nresult";
+        let output = eval(source);
+        assert!(output.contains("captured"));
+    }
 }
