@@ -329,11 +329,11 @@ impl<'source> Parser<'source> {
         }
     }
 
-    fn parse_inner_arg_list(&mut self) -> ParseResult<Vec<Box<Expr>>> {
+    fn parse_inner_arg_list(&mut self) -> ParseResult<Vec<Expr>> {
         let mut args = Vec::new();
         if !self.check(&Token::RParen) {
             loop {
-                args.push(Box::new(self.parse_expression(0)?));
+                args.push(self.parse_expression(0)?);
                 if !self.check(&Token::Comma) {
                     break;
                 }
@@ -357,11 +357,8 @@ impl<'source> Parser<'source> {
         left = self.parse_postfix(left)?;
 
         // Infix operators with precedence climbing
-        loop {
-            let token = match self.peek() {
-                Some(t) => t.token.clone(),
-                None => break,
-            };
+        while let Some(t) = self.peek() {
+            let token = t.token.clone();
 
             // Skip token terminators — these are not infix operators
             if matches!(
@@ -392,7 +389,6 @@ impl<'source> Parser<'source> {
                 _ => {
                     self.advance();
                     let right = self.parse_expression(next_min_prec)?;
-                    // Apply postfix to right side
                     let right = self.parse_postfix(right)?;
                     left = self.make_binary_or_assign_expr(&token, left, right);
                 }
@@ -686,11 +682,8 @@ impl<'source> Parser<'source> {
     // ============================================================
 
     fn parse_postfix(&mut self, mut expr: Expr) -> ParseResult<Expr> {
-        loop {
-            let token = match self.peek() {
-                Some(t) => t.token.clone(),
-                None => break,
-            };
+        while let Some(t) = self.peek() {
+            let token = t.token.clone();
 
             match &token {
                 Token::Colon => {

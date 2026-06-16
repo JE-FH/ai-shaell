@@ -1,6 +1,5 @@
 /// Abstract Syntax Tree for the Shæll language.
 /// Follows the grammar defined in Appendix C.2 of the whitepaper.
-
 /// Top-level program
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
@@ -48,7 +47,7 @@ pub enum Expr {
     Deref(Box<Expr>),                     // @expr
     IndexColon(Box<Expr>, String),        // expr:identifier
     IndexSubscript(Box<Expr>, Box<Expr>), // expr[expr]
-    Call(Box<Expr>, Vec<Box<Expr>>),      // expr(args)
+    Call(Box<Expr>, Vec<Expr>),           // expr(args)
     UnaryLNot(Box<Expr>),                 // !expr
     UnaryNeg(Box<Expr>),                  // -expr
     UnaryPlus(Box<Expr>),                 // +expr
@@ -180,7 +179,7 @@ pub enum FunctionBody {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProgProgram {
     pub program: Box<Expr>,
-    pub args: Vec<Box<Expr>>,
+    pub args: Vec<Expr>,
     pub pipe_target: Option<Box<PipeTarget>>,
     pub pipe_expr: Option<Box<Expr>>,
 }
@@ -196,7 +195,7 @@ pub enum PipeTarget {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PipeProgram {
     pub program: Box<Expr>,
-    pub args: Vec<Box<Expr>>,
+    pub args: Vec<Expr>,
     pub descriptors: Vec<PipeDesc>,
 }
 

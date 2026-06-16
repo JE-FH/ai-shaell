@@ -234,11 +234,8 @@ impl Value {
             Value::Null => "null".to_string(),
             Value::File(p) => format!("@\"{}\"", p),
             Value::Table(t) => {
-                let mut parts: Vec<String> = t
-                    .fields
-                    .iter()
-                    .map(|(k, _)| format!("{} = ...", k))
-                    .collect();
+                let mut parts: Vec<String> =
+                    t.fields.keys().map(|k| format!("{} = ...", k)).collect();
                 for (i, _) in t.array.iter().enumerate() {
                     parts.push(format!("[{}] = ...", i));
                 }
@@ -256,26 +253,24 @@ impl Value {
     /// parameter — clone the value first to avoid nested buffer borrows.
     pub fn index(&self, key: &Value, heap: &GcHeap) -> Result<ValueRef, RuntimeError> {
         match self {
-            Value::Table(t) => {
-                match key {
-                    Value::Number(n) => {
-                        let idx = *n as usize;
-                        if idx < t.array.len() {
-                            Ok(t.array[idx])
-                        } else {
-                            Ok(heap.allocate(Value::Null))
-                        }
-                    }
-                    _ => {
-                        let s = key.to_sstring()?;
-                        if let Some(v) = t.fields.get(&s) {
-                            Ok(*v)
-                        } else {
-                            Ok(heap.allocate(Value::Null))
-                        }
+            Value::Table(t) => match key {
+                Value::Number(n) => {
+                    let idx = *n as usize;
+                    if idx < t.array.len() {
+                        Ok(t.array[idx])
+                    } else {
+                        Ok(heap.allocate(Value::Null))
                     }
                 }
-            }
+                _ => {
+                    let s = key.to_sstring()?;
+                    if let Some(v) = t.fields.get(&s) {
+                        Ok(*v)
+                    } else {
+                        Ok(heap.allocate(Value::Null))
+                    }
+                }
+            },
             Value::String(s) => {
                 let method = key.to_sstring()?;
                 if method == "length" {
@@ -310,23 +305,21 @@ impl Value {
 
     pub fn set_index(&mut self, key: &Value, val: ValueRef) -> Result<(), RuntimeError> {
         match self {
-            Value::Table(t) => {
-                match key {
-                    Value::Number(n) => {
-                        let idx = *n as usize;
-                        if idx >= t.array.len() {
-                            t.array.resize(idx + 1, GcRef::NULL);
-                        }
-                        t.array[idx] = val;
-                        Ok(())
+            Value::Table(t) => match key {
+                Value::Number(n) => {
+                    let idx = *n as usize;
+                    if idx >= t.array.len() {
+                        t.array.resize(idx + 1, GcRef::NULL);
                     }
-                    _ => {
-                        let s = key.to_sstring()?;
-                        t.fields.insert(s, val);
-                        Ok(())
-                    }
+                    t.array[idx] = val;
+                    Ok(())
                 }
-            }
+                _ => {
+                    let s = key.to_sstring()?;
+                    t.fields.insert(s, val);
+                    Ok(())
+                }
+            },
             _ => Err(RuntimeError::new(format!(
                 "Cannot set index on {}",
                 self.get_type_name()

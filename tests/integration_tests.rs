@@ -1202,7 +1202,7 @@ mod parser_error_tests {
     #[test]
     fn test_parse_error_unclosed_string() {
         let mut parser = Parser::new("\"unclosed");
-        assert!(parser.parse_program().is_err() || true);
+        assert!(parser.parse_program().is_err());
     }
 
     #[test]

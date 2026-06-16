@@ -240,6 +240,12 @@ pub struct GcHeap {
     pub bytes_freed: Cell<usize>,
 }
 
+impl Default for GcHeap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GcHeap {
     pub fn new() -> Self {
         let buffer = RefCell::new(vec![0u8; INITIAL_HEAP_SIZE]);
@@ -268,11 +274,11 @@ impl GcHeap {
     // ── header helpers ──────────────────────────────────────
 
     fn with_buf<R>(&self, f: impl FnOnce(&Vec<u8>) -> R) -> R {
-        f(&*self.buffer.borrow())
+        f(&self.buffer.borrow())
     }
 
     fn with_buf_mut<R>(&self, f: impl FnOnce(&mut Vec<u8>) -> R) -> R {
-        f(&mut *self.buffer.borrow_mut())
+        f(&mut self.buffer.borrow_mut())
     }
 
     fn read_header(&self, offset: usize, field_off: usize) -> u64 {
@@ -738,6 +744,7 @@ mod tests {
 
     // ── graph tests ─────────────────────────────────────────
 
+    #[allow(dead_code)]
     struct Node {
         value: f64,
         next: Option<GcRef<Node>>,
