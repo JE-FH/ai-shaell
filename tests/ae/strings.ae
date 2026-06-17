@@ -1,0 +1,47 @@
+# String Tests
+
+T:describe("string literal", fn ()
+    T:assert("hello" == "hello", "string equality")
+    T:assert("" == "", "empty string")
+end)
+
+T:describe("string concatenation", fn ()
+    T:assert("hello " + "world" == "hello world", "str + str")
+    T:assert("" + "x" == "x", "empty + str")
+    T:assert("x" + "" == "x", "str + empty")
+end)
+
+T:describe("string + number concatenation", fn ()
+    T:assert("value: " + 42 == "value: 42", "str + num")
+    T:assert(42 + " is the answer" == "42 is the answer", "num + str")
+end)
+
+T:describe("string repetition", fn ()
+    T:assert("hi" * 3 == "hihihi", "str * 3")
+    T:assert("x" * 0 == "", "str * 0")
+    T:assert("x" * 1 == "x", "str * 1")
+    T:assert(3 * "ab" == "ababab", "3 * str")
+end)
+
+T:describe("string interpolation", fn ()
+    let x = 42
+    T:assert("the answer is ${x}" == "the answer is 42", "interpolation")
+    T:assert("${2 + 3}" == "5", "interpolation with expr")
+    let name = "world"
+    T:assert("hello ${name}" == "hello world", "interpolation var")
+end)
+
+T:describe("string escapes", fn ()
+    T:assert("hello\nworld" == "hello\nworld", "newline escape")
+end)
+
+T:describe("unary plus on string", fn ()
+    T:assert(+"42" == 42, "+string to number")
+    T:assert(+"3.14" == 3.14, "+float string")
+end)
+
+T:describe("unary minus on string", fn ()
+    T:assert(-"42" == -42, "-string to number")
+end)
+
+"Strings: done"

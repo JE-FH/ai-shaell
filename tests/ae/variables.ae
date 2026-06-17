@@ -1,0 +1,74 @@
+# Variables & Assignment Tests
+
+T:describe("let declaration and access", fn ()
+    let x = 42
+    T:assert(x == 42, "let x = 42")
+
+    let y
+    T:assert(y == null, "let y without value is null")
+end)
+
+T:describe("reassignment", fn ()
+    let x = 5
+    x = 10
+    T:assert(x == 10, "x = 10 after let x = 5")
+end)
+
+T:describe("multiple variables", fn ()
+    let a = 1
+    let b = 2
+    let c = a + b
+    T:assert(c == 3, "c = a + b = 3")
+end)
+
+T:describe("shadowing in nested scope", fn ()
+    let outer = 10
+    if true then
+        let outer = 20
+        T:assert(outer == 20, "inner scope shadows outer")
+    end
+    T:assert(outer == 10, "outer scope unchanged")
+end)
+
+T:describe("assignment creates variable if not found", fn ()
+    newvar = 99
+    T:assert(newvar == 99, "assignment creates variable in current scope")
+end)
+
+T:describe("compound assignment +=", fn ()
+    let x = 5
+    x += 3
+    T:assert(x == 8, "5 += 3 = 8")
+end)
+
+T:describe("compound assignment -=", fn ()
+    let x = 10
+    x -= 3
+    T:assert(x == 7, "10 -= 3 = 7")
+end)
+
+T:describe("compound assignment *=", fn ()
+    let x = 4
+    x *= 3
+    T:assert(x == 12, "4 *= 3 = 12")
+end)
+
+T:describe("compound assignment /=", fn ()
+    let x = 10
+    x /= 2
+    T:assert(x == 5, "10 /= 2 = 5")
+end)
+
+T:describe("compound assignment %=", fn ()
+    let x = 10
+    x %= 3
+    T:assert(x == 1, "10 %= 3 = 1")
+end)
+
+T:describe("compound assignment **=", fn ()
+    let x = 2
+    x **= 3
+    T:assert(x == 8, "2 **= 3 = 8")
+end)
+
+"Variables: done"

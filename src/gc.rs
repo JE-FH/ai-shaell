@@ -254,7 +254,7 @@ impl GcHeap {
             bump: Cell::new(0),
             free_head: Cell::new(0),
             alloc_count: Cell::new(0),
-            threshold: Cell::new(500),
+            threshold: Cell::new(50_000),
             collections: Cell::new(0),
             bytes_allocated: Cell::new(0),
             bytes_freed: Cell::new(0),

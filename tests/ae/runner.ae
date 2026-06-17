@@ -1,0 +1,113 @@
+# Shæll Self-Test Suite
+# Run: shaell tests/ae/runner.ae
+
+let T = {}
+let results = ""
+let passed = 0
+let failed = 0
+
+T:describe = fn (name, test_fn)
+    let result = try test_fn() end
+    if result:status == 0 then
+        passed = passed + 1
+        results = results + "  PASS: " + name + "\n"
+    else
+        failed = failed + 1
+        let err_msg = result:error
+        results = results + "  FAIL: " + name + " -- " + err_msg + "\n"
+    end
+end
+
+T:assert = fn (condition, message)
+    if not condition then throw message end
+end
+
+# === Variables & Assignment ===
+T:describe("let declaration", fn () let x = 42; T:assert(x == 42, "let x=42"); let y; T:assert(y == null, "uninit null") end)
+T:describe("reassignment", fn () let x = 5; x = 10; T:assert(x == 10, "x=10") end)
+T:describe("assign creates var", fn () newvar = 99; T:assert(newvar == 99, "create") end)
+T:describe("compound +=", fn () let x = 5; x += 3; T:assert(x == 8, "5+=3") end)
+T:describe("compound -=", fn () let x = 10; x -= 3; T:assert(x == 7, "10-=3") end)
+T:describe("compound *=", fn () let x = 4; x *= 3; T:assert(x == 12, "4*=3") end)
+T:describe("compound /=", fn () let x = 10; x /= 2; T:assert(x == 5, "10/=2") end)
+T:describe("compound %=", fn () let x = 10; x %= 3; T:assert(x == 1, "10%=3") end)
+T:describe("compound **=", fn () let x = 2; x **= 3; T:assert(x == 8, "2**=3") end)
+
+# === Arithmetic ===
+T:describe("addition", fn () T:assert(2 + 3 == 5, "add"); T:assert(-1 + 1 == 0, "neg") end)
+T:describe("subtraction", fn () T:assert(10 - 3 == 7, "sub"); T:assert(5 - 10 == -5, "neg sub") end)
+T:describe("multiplication", fn () T:assert(4 * 5 == 20, "mul"); T:assert(0 * 99 == 0, "zero mul") end)
+T:describe("division", fn () T:assert(10 / 2 == 5, "div"); T:assert(10 / 4 == 2.5, "float") end)
+T:describe("modulo", fn () T:assert(10 % 3 == 1, "mod"); T:assert(10 % 2 == 0, "even") end)
+T:describe("power", fn () T:assert(2 ** 8 == 256, "2**8"); T:assert(5 ** 0 == 1, "pow 0") end)
+T:describe("precedence", fn () T:assert(2 + 3 * 4 == 14, "add-mul"); T:assert((2 + 3) * 4 == 20, "parens") end)
+
+# === Strings ===
+T:describe("string concat", fn () T:assert("hello " + "world" == "hello world", "str+str"); T:assert("x" + "" == "x", "str+empty") end)
+T:describe("str+num concat", fn () T:assert("val: " + 42 == "val: 42", "str+num"); T:assert(42 + " ans" == "42 ans", "num+str") end)
+T:describe("string repeat", fn () T:assert("hi" * 3 == "hihihi", "repeat"); T:assert("x" * 0 == "", "repeat 0"); T:assert(3 * "ab" == "ababab", "num*str") end)
+T:describe("interpolation", fn () let x = 42; T:assert("ans is ${x}" == "ans is 42", "interp"); T:assert("${2+3}" == "5", "expr") end)
+T:describe("unary str conv", fn () T:assert(+"42" == 42, "+str"); T:assert(-"42" == -42, "-str") end)
+
+# === Control Flow ===
+T:describe("if/then", fn () let x = 0; if true then x = 1 end; T:assert(x == 1, "if true") end)
+T:describe("if/else", fn () let x = 0; if false then x = 99 else x = 2 end; T:assert(x == 2, "else") end)
+T:describe("if number cond", fn () let x = 0; if 1 then x = 1 end; T:assert(x == 1, "nonzero"); if 0 then x = 99 end; T:assert(x == 1, "zero") end)
+T:describe("while loop", fn () let i = 0; while i < 5 do i = i + 1 end; T:assert(i == 5, "5 iters") end)
+T:describe("while never", fn () let c = 0; while false do c = c + 1 end; T:assert(c == 0, "never") end)
+T:describe("for loop", fn () let s = 0; for let i = 0, i < 5, i = i + 1 do s = s + i end; T:assert(s == 10, "sum 0..4") end)
+T:describe("foreach array", fn () let t = {[0]=10,[1]=20,[2]=30}; let s = 0; foreach v in t do s = s + v end; T:assert(s == 60, "sum") end)
+T:describe("foreach kv", fn () let t = {a=1,b=2}; let s = 0; foreach k,v in t do s = s + v end; T:assert(s == 3, "sum kv") end)
+T:describe("foreach empty", fn () let t = {}; let c = 0; foreach v in t do c = c + 1 end; T:assert(c == 0, "empty") end)
+T:describe("break while", fn () let x = 0; while true do x = x + 1; if x >= 5 then break end; end; T:assert(x == 5, "break") end)
+T:describe("break for", fn () let s = 0; for let i = 0, i < 10, i = i + 1 do s = s + i; if i >= 4 then break end; end; T:assert(s == 10, "break sum") end)
+
+# === Functions ===
+T:describe("function call", fn () fn add(a,b)=>a+b; T:assert(add(3,4)==7,"add(3,4)") end)
+T:describe("lambda", fn () fn square(x)=>x*x; T:assert(square(5)==25,"square(5)") end)
+T:describe("anonymous fn", fn () let triple=fn(x)=>x*3; T:assert(triple(7)==21,"triple(7)") end)
+T:describe("no-arg fn", fn () fn answer()=>42; T:assert(answer()==42,"answer()") end)
+T:describe("closure", fn () let base=10; fn add_base(x)=>x+base; T:assert(add_base(5)==15,"closure") end)
+T:describe("mutable closure", fn ()
+    fn make_counter()
+        let n = 0
+        fn count() n = n + 1; return n end
+        return count
+    end
+    let c = make_counter()
+    T:assert(c() == 1, "c=1")
+    T:assert(c() == 2, "c=2")
+    T:assert(c() == 3, "c=3")
+end)
+T:describe("higher-order", fn () fn apply(f,x)=>f(x); fn double(n)=>n*2; T:assert(apply(double,7)==14,"apply") end)
+T:describe("recursion", fn () fn fac(n) if n<=1 then return 1 end; return n*fac(n-1) end; T:assert(fac(5)==120,"fac 5") end)
+T:describe("early return", fn () fn e(x) if x>5 then return "big" end; return "small" end; T:assert(e(3)=="small","small"); T:assert(e(10)=="big","big") end)
+
+# === Tables ===
+T:describe("table fields", fn () let t={name="Alice",age=30}; T:assert(t:name=="Alice","field"); T:assert(t["name"]=="Alice","bracket"); T:assert(t:age==30,"num") end)
+T:describe("table array", fn () let t={[0]="zero",[1]="one"}; T:assert(t[0]=="zero","idx0"); T:assert(t[1]=="one","idx1") end)
+T:describe("table assign", fn () let t={}; t:key="val"; T:assert(t:key=="val","assign"); t:key="upd"; T:assert(t:key=="upd","update") end)
+T:describe("table missing", fn () let t={a=1}; T:assert(t:b==null,"missing") end)
+T:describe("table compound", fn () let t={count=10}; t:count+=5; T:assert(t:count==15,"+=") end)
+
+# === Logic & Comparisons ===
+T:describe("equality", fn () T:assert(5==5,"num"); T:assert("a"=="a","str"); T:assert(true==true,"bool"); T:assert(null==null,"null") end)
+T:describe("inequality", fn () T:assert(5!=3,"num"); T:assert("a"!="b","str") end)
+T:describe("comparisons", fn () T:assert(5>3,"gt"); T:assert(3<5,"lt"); T:assert(5>=5,"geq"); T:assert(3<=5,"leq") end)
+T:describe("logical and", fn () T:assert(true&&true,"tt"); T:assert(not(true&&false),"tf") end)
+T:describe("logical or", fn () T:assert(true||false,"tf"); T:assert(not(false||false),"ff") end)
+T:describe("not keyword", fn () T:assert(not true==false,"not T"); T:assert(not false==true,"not F"); T:assert(not 1==false,"not 1"); T:assert(not 0==true,"not 0") end)
+T:describe("short-circuit and", fn () fn ex() throw "nope" end; let r=false&&ex(); T:assert(not r,"sc and") end)
+T:describe("short-circuit or", fn () fn ex() throw "nope" end; let r=true||ex(); T:assert(r,"sc or") end)
+T:describe("cross-type eq", fn () T:assert(not(5=="5"),"n!=s"); T:assert(not(true==1),"b!=n"); T:assert(not(null==false),"null!=f") end)
+
+# === Try / Throw ===
+T:describe("try success", fn () let r=try 42 end; T:assert(r:status==0,"status"); T:assert(r:value==42,"value") end)
+T:describe("try catch", fn () let r=try throw "err" end; T:assert(r:status!=0,"caught"); T:assert(r:error!=null,"has error") end)
+
+# === !command ===
+T:describe("!echo output", fn () !echo with ("hello") -> let out; T:assert(out!=null,"captured") end)
+T:describe("!echo with var", fn () let msg="eval"; !echo with (msg) -> let out; T:assert(out!=null,"var captured") end)
+
+# === Print results ===
+results + "Total: " + passed + " passed, " + failed + " failed"

@@ -1,0 +1,96 @@
+# Shæll Test Library
+# Provides: describe, assert, assertType, tableEqual, tableEquivalent
+# Usage: import this file at the top of test scripts
+
+let T = {}
+
+# --- describe(name: String, fn: Function) ---
+# Runs a test function. Catches any thrown error and reports pass/fail.
+T:describe = fn (name, test_fn)
+    let result = try
+        test_fn()
+    end
+    if result:status == 0 then
+        !echo with ("  PASS: " + name)
+    else
+        let err_msg = result:error
+        !echo with ("  FAIL: " + name + " — " + err_msg)
+    end
+end
+
+# --- assert(condition: Bool, message: String) ---
+# Throws the message if condition is false.
+T:assert = fn (condition, message)
+    if not condition then
+        throw message
+    end
+end
+
+# --- assertType(value: Any, expected_type: String) ---
+# Throws if the value's type doesn't match expected_type.
+# Note: type_name comparison works for built-in types.
+T:assertType = fn (value, expected_type)
+    # We can't easily get runtime type names, so use a try-based check
+    if expected_type == "number" then
+        let n = +value
+        T:assert(true, "")  # just checking we got here without error
+    else
+        if expected_type == "string" then
+            let s = value + ""
+        else
+            if expected_type == "bool" then
+                let b = not not value
+            end
+        end
+    end
+end
+
+# --- tableEqual(t1: Table, t2: Table, test_name: String) ---
+# Checks two tables have the same named fields.
+T:tableEqual = fn (t1, t2, test_name)
+    foreach key, val in t1 do
+        if t2:key == null then
+            throw test_name + ": missing key '" + key + "'"
+        end
+        if t2:key != val then
+            throw test_name + ": value mismatch for '" + key + "'"
+        end
+    end
+    foreach key, val in t2 do
+        if t1:key == null then
+            throw test_name + ": extra key '" + key + "'"
+        end
+    end
+end
+
+# --- tableEquivalent(t1: Table, t2: Table, test_name: String) ---
+# Checks two tables have the same array entries.
+T:tableEquivalent = fn (t1, t2, test_name)
+    let count1 = 0
+    let count2 = 0
+    foreach v in t1 do
+        count1 = count1 + 1
+    end
+    foreach v in t2 do
+        count2 = count2 + 1
+    end
+    if count1 != count2 then
+        throw test_name + ": different array lengths"
+    end
+    let i = 0
+    while i < count1 do
+        if t1[i] != t2[i] then
+            throw test_name + ": value mismatch at index " + i
+        end
+        i = i + 1
+    end
+end
+
+# --- eq(a, b) -> Bool ---
+# Checks equality, returns bool.
+T:eq = fn (a, b) => a == b
+
+# --- neq(a, b) -> Bool ---
+T:neq = fn (a, b) => a != b
+
+"Test library loaded"

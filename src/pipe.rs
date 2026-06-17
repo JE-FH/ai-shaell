@@ -26,9 +26,9 @@ pub fn execute_prog_program_strs(
     });
     cmd.stderr(std::process::Stdio::inherit());
 
-    let mut child = cmd.spawn().map_err(|e| {
-        RuntimeError::new(format!("Failed to execute '{}': {}", program_path, e))
-    })?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| RuntimeError::new(format!("Failed to execute '{}': {}", program_path, e)))?;
 
     if let Some(input) = piped_input {
         if let Some(mut stdin) = child.stdin.take() {
@@ -37,9 +37,9 @@ pub fn execute_prog_program_strs(
         }
     }
 
-    let output = child.wait_with_output().map_err(|e| {
-        RuntimeError::new(format!("Failed to wait for '{}': {}", program_path, e))
-    })?;
+    let output = child
+        .wait_with_output()
+        .map_err(|e| RuntimeError::new(format!("Failed to wait for '{}': {}", program_path, e)))?;
 
     let return_code = output.status.code().unwrap_or(1);
     let stdout_str = if capture_output {

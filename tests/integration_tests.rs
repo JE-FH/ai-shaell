@@ -1589,7 +1589,11 @@ mod builtin_integration {
         // !echo with(a) should print value of a, not literal "a"
         let source = "let a = 1\n!echo with (a) -> let out\nout";
         let result = eval(source);
-        assert!(result.contains("1"), "expected '1' from variable, got: {}", result);
+        assert!(
+            result.contains("1"),
+            "expected '1' from variable, got: {}",
+            result
+        );
     }
 
     #[test]
@@ -1597,7 +1601,11 @@ mod builtin_integration {
         // !echo with(a + 2) should evaluate a + 2
         let source = "let x = 5\n!echo with (x + 3) -> let out\nout";
         let result = eval(source);
-        assert!(result.contains("8"), "expected '8' from 5+3, got: {}", result);
+        assert!(
+            result.contains("8"),
+            "expected '8' from 5+3, got: {}",
+            result
+        );
     }
 
     #[test]
@@ -1605,7 +1613,11 @@ mod builtin_integration {
         // !echo with(msg) should print value of string variable
         let source = "let msg = \"hello\"\n!echo with (msg) -> let out\nout";
         let result = eval(source);
-        assert!(result.contains("hello"), "expected 'hello', got: {}", result);
+        assert!(
+            result.contains("hello"),
+            "expected 'hello', got: {}",
+            result
+        );
     }
 
     #[test]
@@ -1614,7 +1626,11 @@ mod builtin_integration {
         // a is just passed as the string "a", not the variable value
         let source = "let a = 999\n!echo a -> let out\nout";
         let result = eval(source);
-        assert!(result.contains("a"), "bare 'a' should be literal, got: {}", result);
+        assert!(
+            result.contains("a"),
+            "bare 'a' should be literal, got: {}",
+            result
+        );
     }
 
     #[test]

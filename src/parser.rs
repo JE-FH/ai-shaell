@@ -426,7 +426,10 @@ impl<'source> Parser<'source> {
         loop {
             // Skip leading whitespace; track if we crossed a newline
             let mut crossed_newline = false;
-            while self.pos < self.tokens.len() && self.tokens[self.pos].token == Token::Whitespace {
+            while self.pos < self.tokens.len()
+                && (self.tokens[self.pos].token == Token::Whitespace
+                    || self.tokens[self.pos].token == Token::Semicolon)
+            {
                 let span = &self.tokens[self.pos].span;
                 if self.source[span.start..span.end].contains('\n') {
                     crossed_newline = true;
@@ -859,10 +862,11 @@ impl<'source> Parser<'source> {
     // ============================================================
 
     fn peek(&self) -> Option<&SpannedToken> {
-        // Skip whitespace tokens
+        // Skip whitespace and semicolon tokens
         let mut pos = self.pos;
         while pos < self.tokens.len() {
-            if self.tokens[pos].token != Token::Whitespace {
+            let t = &self.tokens[pos].token;
+            if t != &Token::Whitespace && t != &Token::Semicolon {
                 return Some(&self.tokens[pos]);
             }
             pos += 1;
@@ -875,8 +879,11 @@ impl<'source> Parser<'source> {
     }
 
     fn advance(&mut self) -> &SpannedToken {
-        // Skip whitespace tokens
-        while self.pos < self.tokens.len() && self.tokens[self.pos].token == Token::Whitespace {
+        // Skip whitespace and semicolon tokens
+        while self.pos < self.tokens.len()
+            && (self.tokens[self.pos].token == Token::Whitespace
+                || self.tokens[self.pos].token == Token::Semicolon)
+        {
             self.pos += 1;
         }
         if self.pos < self.tokens.len() {
@@ -904,7 +911,10 @@ impl<'source> Parser<'source> {
 
     fn is_at_effective_end(&self) -> bool {
         let mut pos = self.pos;
-        while pos < self.tokens.len() && self.tokens[pos].token == Token::Whitespace {
+        while pos < self.tokens.len()
+            && (self.tokens[pos].token == Token::Whitespace
+                || self.tokens[pos].token == Token::Semicolon)
+        {
             pos += 1;
         }
         pos >= self.tokens.len()

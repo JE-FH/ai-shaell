@@ -737,7 +737,9 @@ impl Interpreter {
         let mut arg_strings: Vec<String> = Vec::new();
         for arg in &prog.args {
             let val = self.eval_expression(arg)?;
-            let s = self.heap.with_ref(val, |v| v.to_sstring().unwrap_or_default());
+            let s = self
+                .heap
+                .with_ref(val, |v| v.to_sstring().unwrap_or_default());
             arg_strings.push(s);
         }
         let (return_code, stdout) =

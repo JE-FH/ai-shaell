@@ -9,6 +9,9 @@ pub enum Token {
     /// Whitespace and newlines (filtered by parser between tokens)
     #[regex(r"[ \t\r\n]+")]
     Whitespace,
+    /// Semicolons act as statement separators (like newlines)
+    #[token(";")]
+    Semicolon,
     // === Keywords (priority must exceed Identifier regex) ===
     #[token("if")]
     If,
@@ -217,6 +220,7 @@ impl std::fmt::Display for Token {
             Token::Number(n) => write!(f, "{}", n),
             Token::Identifier(s) => write!(f, "{}", s),
             Token::Whitespace => write!(f, " "),
+            Token::Semicolon => write!(f, ";"),
         }
     }
 }

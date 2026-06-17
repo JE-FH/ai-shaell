@@ -1,0 +1,71 @@
+# Logical Operators & Comparisons
+
+T:describe("equality", fn ()
+    T:assert(5 == 5, "5 == 5")
+    T:assert("a" == "a", "string eq")
+    T:assert(true == true, "bool eq")
+    T:assert(null == null, "null eq")
+end)
+
+T:describe("inequality", fn ()
+    T:assert(5 != 3, "5 != 3")
+    T:assert("a" != "b", "string neq")
+    T:assert(true != false, "bool neq")
+    T:assert(null != 5, "null != 5")
+end)
+
+T:describe("comparisons", fn ()
+    T:assert(5 > 3, "5 > 3")
+    T:assert(3 < 5, "3 < 5")
+    T:assert(5 >= 5, "5 >= 5")
+    T:assert(5 <= 5, "5 <= 5")
+    T:assert(not (5 > 10), "not (5 > 10)")
+end)
+
+T:describe("logical and", fn ()
+    T:assert(true && true, "true && true")
+    T:assert(not (true && false), "not (true && false)")
+    T:assert(not (false && true), "not (false && true)")
+    T:assert(not (false && false), "not (false && false)")
+end)
+
+T:describe("logical or", fn ()
+    T:assert(true || true, "true || true")
+    T:assert(true || false, "true || false")
+    T:assert(false || true, "false || true")
+    T:assert(not (false || false), "not (false || false)")
+end)
+
+T:describe("logical not with 'not' keyword", fn ()
+    T:assert(not true == false, "not true")
+    T:assert(not false == true, "not false")
+    T:assert(not (5 > 3) == false, "not comparison")
+    T:assert(not 0 == true, "not 0 (falsy)")
+    T:assert(not 1 == false, "not 1 (truthy)")
+end)
+
+T:describe("and short-circuits", fn ()
+    fn explode()
+        throw "should not be called"
+        return true
+    end
+    let r = false && explode()
+    T:assert(not r, "false && f() short-circuits, returns false")
+end)
+
+T:describe("or short-circuits", fn ()
+    fn explode()
+        throw "should not be called"
+        return false
+    end
+    let r = true || explode()
+    T:assert(r, "true || f() short-circuits, returns true")
+end)
+
+T:describe("cross-type equality is false", fn ()
+    T:assert(not (5 == "5"), "5 != '5'")
+    T:assert(not (true == 1), "true != 1")
+    T:assert(not (null == false), "null != false")
+end)
+
+"Logic: done"

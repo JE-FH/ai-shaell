@@ -1,0 +1,99 @@
+# Function Tests
+
+T:describe("function definition and call", fn ()
+    fn add(a, b)
+        return a + b
+    end
+    T:assert(add(3, 4) == 7, "add(3, 4) = 7")
+end)
+
+T:describe("lambda function", fn ()
+    fn square(x) => x * x
+    T:assert(square(5) == 25, "square(5) = 25")
+end)
+
+T:describe("anonymous function", fn ()
+    let triple = fn (x) => x * 3
+    T:assert(triple(7) == 21, "triple(7) = 21")
+end)
+
+T:describe("function with no args", fn ()
+    fn answer() => 42
+    T:assert(answer() == 42, "answer() = 42")
+end)
+
+T:describe("function with no return", fn ()
+    fn noop()
+        let x = 1
+    end
+    T:assert(noop() == null, "noop returns null")
+end)
+
+T:describe("closure captures scope", fn ()
+    let base = 10
+    fn add_base(x)
+        return x + base
+    end
+    T:assert(add_base(5) == 15, "closure: base=10, add_base(5)=15")
+end)
+
+T:describe("closure with mutable state", fn ()
+    fn make_counter()
+        let n = 0
+        fn count()
+            n = n + 1
+            return n
+        end
+        return count
+    end
+    let c = make_counter()
+    T:assert(c() == 1, "counter: 1")
+    T:assert(c() == 2, "counter: 2")
+    T:assert(c() == 3, "counter: 3")
+end)
+
+T:describe("higher-order function", fn ()
+    fn apply(f, x)
+        return f(x)
+    end
+    fn double(n) => n * 2
+    T:assert(apply(double, 7) == 14, "apply(double, 7) = 14")
+end)
+
+T:describe("recursive function", fn ()
+    fn factorial(n)
+        if n <= 1 then
+            return 1
+        end
+        return n * factorial(n - 1)
+    end
+    T:assert(factorial(5) == 120, "factorial(5) = 120")
+end)
+
+T:describe("function with extra args ignored", fn ()
+    fn one(a) => a
+    T:assert(one(1, 2, 3) == 1, "extra args ignored")
+end)
+
+T:describe("function with missing args", fn ()
+    fn two(a, b)
+        if b == null then
+            return a
+        end
+        return a + b
+    end
+    T:assert(two(5) == 5, "missing arg is null")
+end)
+
+T:describe("return from function", fn ()
+    fn early(x)
+        if x > 5 then
+            return "big"
+        end
+        return "small"
+    end
+    T:assert(early(3) == "small", "early(3) = small")
+    T:assert(early(10) == "big", "early(10) = big")
+end)
+
+"Functions: done"

@@ -1,0 +1,63 @@
+# Table Tests
+
+T:describe("empty table", fn ()
+    let t = {}
+    T:assert(t != null, "empty table is not null")
+end)
+
+T:describe("table with named fields", fn ()
+    let t = { name = "Alice", age = 30 }
+    T:assert(t:name == "Alice", "field access with colon")
+    T:assert(t:age == 30, "numeric field")
+end)
+
+T:describe("table bracket access", fn ()
+    let t = { name = "Bob" }
+    T:assert(t["name"] == "Bob", "bracket string access")
+end)
+
+T:describe("table array access", fn ()
+    let t = { [0] = "zero", [1] = "one" }
+    T:assert(t[0] == "zero", "array index 0")
+    T:assert(t[1] == "one", "array index 1")
+end)
+
+T:describe("table mixed keys", fn ()
+    let t = { name = "test", [0] = "zero" }
+    T:assert(t:name == "test", "named field")
+    T:assert(t[0] == "zero", "array index")
+end)
+
+T:describe("table assignment", fn ()
+    let t = {}
+    t:new_key = "hello"
+    T:assert(t:new_key == "hello", "assign new field")
+    t:new_key = "updated"
+    T:assert(t:new_key == "updated", "update existing field")
+end)
+
+T:describe("table array assignment", fn ()
+    let t = {}
+    t[0] = "first"
+    T:assert(t[0] == "first", "assign array index")
+end)
+
+T:describe("table missing key returns null", fn ()
+    let t = { a = 1 }
+    T:assert(t:b == null, "missing key is null")
+end)
+
+T:describe("table compound assignment", fn ()
+    let t = { count = 10 }
+    t:count += 5
+    T:assert(t:count == 15, "table field += 5")
+end)
+
+T:describe("nested table access", fn ()
+    let inner = { x = 42 }
+    let outer = { child = inner }
+    let child = outer:child
+    T:assert(child:x == 42, "nested table value")
+end)
+
+"Tables: done"

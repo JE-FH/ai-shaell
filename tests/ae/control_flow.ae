@@ -1,0 +1,109 @@
+# Control Flow Tests
+
+T:describe("if/then/else", fn ()
+    let x = 0
+    if true then
+        x = 1
+    end
+    T:assert(x == 1, "if true then body executes")
+
+    if false then
+        x = 99
+    end
+    T:assert(x == 1, "if false then body skipped")
+
+    if false then
+        x = 99
+    else
+        x = 2
+    end
+    T:assert(x == 2, "else body executes when condition false")
+end)
+
+T:describe("if with number condition", fn ()
+    let x = 0
+    if 1 then
+        x = 1
+    end
+    T:assert(x == 1, "non-zero is truthy")
+
+    if 0 then
+        x = 99
+    end
+    T:assert(x == 1, "zero is falsy")
+end)
+
+T:describe("while loop", fn ()
+    let i = 0
+    while i < 5 do
+        i = i + 1
+    end
+    T:assert(i == 5, "while i < 5 runs 5 times")
+
+    let count = 0
+    while false do
+        count = count + 1
+    end
+    T:assert(count == 0, "while false never executes")
+end)
+
+T:describe("for loop", fn ()
+    let sum = 0
+    for let i = 0, i < 5, i = i + 1 do
+        sum = sum + i
+    end
+    T:assert(sum == 10, "for sum 0+1+2+3+4 = 10")
+
+    let x = 0
+    for let i = 0, false, i = i + 1 do
+        x = 1
+    end
+    T:assert(x == 0, "for with false condition never runs")
+end)
+
+T:describe("foreach loop", fn ()
+    let t = { [0] = 10, [1] = 20, [2] = 30 }
+    let sum = 0
+    foreach v in t do
+        sum = sum + v
+    end
+    T:assert(sum == 60, "foreach sums array elements")
+
+    let empty = {}
+    let count = 0
+    foreach v in empty do
+        count = count + 1
+    end
+    T:assert(count == 0, "foreach on empty table")
+end)
+
+T:describe("foreach key-value", fn ()
+    let t = { a = 1, b = 2 }
+    let sum = 0
+    foreach k, v in t do
+        sum = sum + v
+    end
+    T:assert(sum == 3, "foreach kv sums named fields")
+end)
+
+T:describe("break in loop", fn ()
+    let x = 0
+    while true do
+        x = x + 1
+        if x >= 5 then
+            break
+        end
+    end
+    T:assert(x == 5, "break exits while loop")
+
+    let sum = 0
+    for let i = 0, i < 10, i = i + 1 do
+        sum = sum + i
+        if i >= 4 then
+            break
+        end
+    end
+    T:assert(sum == 10, "break exits for loop")  # 0+1+2+3+4 = 10
+end)
+
+"Control flow: done"

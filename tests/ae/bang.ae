@@ -1,0 +1,25 @@
+# !command Tests
+
+T:describe("!echo with bare args", fn ()
+    !echo with ("hello world") -> let out
+    T:assert(out != null, "!echo captures output")
+end)
+
+T:describe("!echo with quoted string", fn ()
+    !echo with ("test") -> let out
+    T:assert(out != null, "!echo with quoted string works")
+end)
+
+T:describe("!echo with evaluated expression", fn ()
+    let msg = "eval test"
+    !echo with (msg) -> let out
+    T:assert(out != null, "!echo with variable works")
+end)
+
+T:describe("!command with no args", fn ()
+    !echo -> let rc
+    rc
+    T:assert(true, "!echo with no args runs")
+end)
+
+"!command: done"

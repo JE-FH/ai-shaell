@@ -1,0 +1,54 @@
+# Arithmetic Tests
+
+T:describe("addition", fn ()
+    T:assert(2 + 3 == 5, "2 + 3")
+    T:assert(0 + 0 == 0, "0 + 0")
+    T:assert(-1 + 1 == 0, "-1 + 1")
+end)
+
+T:describe("subtraction", fn ()
+    T:assert(10 - 3 == 7, "10 - 3")
+    T:assert(5 - 10 == -5, "5 - 10")
+    T:assert(0 - 0 == 0, "0 - 0")
+end)
+
+T:describe("multiplication", fn ()
+    T:assert(4 * 5 == 20, "4 * 5")
+    T:assert(0 * 99 == 0, "0 * 99")
+    T:assert(-2 * 3 == -6, "-2 * 3")
+end)
+
+T:describe("division", fn ()
+    T:assert(10 / 2 == 5, "10 / 2")
+    T:assert(7 / 2 == 3.5, "7 / 2 float")
+end)
+
+T:describe("modulo", fn ()
+    T:assert(10 % 3 == 1, "10 % 3")
+    T:assert(10 % 2 == 0, "10 % 2")
+    T:assert(7 % 5 == 2, "7 % 5")
+end)
+
+T:describe("power", fn ()
+    T:assert(2 ** 8 == 256, "2 ** 8")
+    T:assert(5 ** 0 == 1, "5 ** 0")
+    T:assert(3 ** 3 == 27, "3 ** 3")
+end)
+
+T:describe("operator precedence", fn ()
+    T:assert(2 + 3 * 4 == 14, "2 + 3 * 4 = 14")
+    T:assert((2 + 3) * 4 == 20, "(2 + 3) * 4 = 20")
+    T:assert(2 * 3 ** 2 == 18, "2 * 3 ** 2 = 18")
+end)
+
+T:describe("unary negation", fn ()
+    T:assert(-5 + 3 == -2, "-5 + 3")
+    T:assert(--10 == 10, "--10 double neg")
+end)
+
+T:describe("decimal numbers", fn ()
+    T:assert(3.5 + 1.5 == 5, "3.5 + 1.5")
+    T:assert(10 / 4 == 2.5, "10 / 4")
+end)
+
+"Arithmetic: done"
