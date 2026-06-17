@@ -1,35 +1,36 @@
-use std::io::{self, BufRead, Write};
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
 
 use crate::interpreter::Interpreter;
 use crate::parser::Parser;
 
-/// Run the REPL (Read-Eval-Print Loop)
+/// Run the REPL (Read-Eval-Print Loop) with line editing and history.
 pub fn run_repl() {
-    println!("Shæll REPL v0.1.0");
-    println!("Type 'exit' or press Ctrl+D to quit.");
+    println!("Shæll v0.2.2 — type 'exit' or Ctrl+D to quit");
     println!();
 
     let mut interpreter = Interpreter::new();
 
-    // Try to load .shællrc
+    // Load ~/.shællrc
     load_shaellrc(&mut interpreter);
 
-    let mut stdin = io::stdin();
-    let mut lines = String::new();
+    // Set up history
+    let mut rl = DefaultEditor::new().expect("failed to create line editor");
+    let history_path = history_file();
+    let _ = rl.load_history(&history_path);
 
     loop {
-        print!(">>> ");
-        io::stdout().flush().ok();
+        // Check if we need multi-line input
+        let prompt = if requires_more_lines("") {
+            "..... "
+        } else {
+            "shaell$ "
+        };
 
-        lines.clear();
-        match stdin.lock().read_line(&mut lines) {
-            Ok(0) => {
-                // EOF
-                println!();
-                break;
-            }
-            Ok(_) => {
-                let input = lines.trim();
+        let readline = rl.readline(prompt);
+        match readline {
+            Ok(line) => {
+                let input = line.trim();
                 if input.is_empty() {
                     continue;
                 }
@@ -37,9 +38,14 @@ pub fn run_repl() {
                     break;
                 }
 
-                // Handle multi-line input for blocks
+                rl.add_history_entry(&line).ok();
+
+                // Collect multi-line input if needed
                 let source = if requires_more_lines(input) {
-                    read_multiline(&mut stdin, input)
+                    match read_multiline(&mut rl, input) {
+                        Some(multi) => multi,
+                        None => continue, // interrupted
+                    }
                 } else {
                     input.to_string()
                 };
@@ -53,87 +59,81 @@ pub fn run_repl() {
                     }
                     Err(err) => {
                         eprintln!("Error: {}", err.message);
-                        for trace in &err.traces {
-                            eprintln!("  at {}", trace);
-                        }
                     }
                 }
             }
-            Err(e) => {
-                eprintln!("Input error: {}", e);
+            Err(ReadlineError::Interrupted) => {
+                // Ctrl-C: cancel current input
+                println!("^C");
+                continue;
+            }
+            Err(ReadlineError::Eof) => {
+                // Ctrl-D: exit
+                println!("exit");
+                break;
+            }
+            Err(err) => {
+                eprintln!("REPL error: {:?}", err);
                 break;
             }
         }
     }
+
+    // Save history
+    let _ = rl.save_history(&history_path);
 }
 
-/// Check if input requires more lines (unclosed blocks)
+/// Read multi-line input until all blocks are closed.
+fn read_multiline(rl: &mut DefaultEditor, initial: &str) -> Option<String> {
+    let mut buffer = initial.to_string();
+
+    loop {
+        match rl.readline("..... ") {
+            Ok(line) => {
+                rl.add_history_entry(&line).ok();
+                buffer.push('\n');
+                buffer.push_str(&line);
+                if !requires_more_lines(&buffer) {
+                    return Some(buffer);
+                }
+            }
+            Err(ReadlineError::Interrupted) => {
+                return None;
+            }
+            Err(ReadlineError::Eof) => {
+                return None;
+            }
+            Err(_) => return None,
+        }
+    }
+}
+
+/// Check if input requires more lines (unclosed blocks).
 fn requires_more_lines(input: &str) -> bool {
-    let mut if_count = 0;
-    let mut while_count = 0;
-    let mut for_count = 0;
-    let mut foreach_count = 0;
-    let mut fn_count = 0;
-    let mut try_count = 0;
-    let mut pipe_count = 0;
-    let mut define_args_count = 0;
-    let mut do_count = 0;
-    let mut end_count = 0;
+    let mut opens = 0i32;
+    let mut ends = 0i32;
 
     for word in input.split_whitespace() {
         match word {
-            "if" | "then" => if_count += 1,
-            "while" => while_count += 1,
-            "for" => for_count += 1,
-            "foreach" => foreach_count += 1,
-            "fn" => fn_count += 1,
-            "try" => try_count += 1,
-            "pipe" => pipe_count += 1,
-            "define_args" => define_args_count += 1,
-            "do" => do_count += 1,
-            "end" => end_count += 1,
+            "if" | "for" | "foreach" | "while" | "fn" | "try" | "pipe" | "define_args" | "then"
+            | "do" => opens += 1,
+            "end" => ends += 1,
             _ => {}
         }
     }
 
-    let total_open = if_count
-        + while_count
-        + for_count
-        + foreach_count
-        + fn_count
-        + try_count
-        + pipe_count
-        + define_args_count
-        + do_count;
-    total_open > end_count
+    // Also check for unclosed strings
+    let quote_count = input.matches('"').count();
+    let interpolations = input.matches("${").count();
+    let close_braces = input.matches('}').count();
+
+    let unbalanced_quotes = !quote_count.is_multiple_of(2);
+    let unbalanced_interp = interpolations > close_braces;
+
+    opens > ends || unbalanced_quotes || unbalanced_interp
 }
 
-/// Read multi-line input until all blocks are closed
-fn read_multiline(stdin: &mut io::Stdin, initial: &str) -> String {
-    let mut buffer = initial.to_string();
-
-    loop {
-        print!("... ");
-        io::stdout().flush().ok();
-
-        let mut line = String::new();
-        match stdin.lock().read_line(&mut line) {
-            Ok(0) => break,
-            Ok(_) => {
-                buffer.push('\n');
-                buffer.push_str(&line);
-                if !requires_more_lines(&buffer) {
-                    break;
-                }
-            }
-            Err(_) => break,
-        }
-    }
-
-    buffer
-}
-
-/// Execute Shæll source code
+/// Execute Shæll source code.
 pub fn execute_source(
     interpreter: &mut Interpreter,
     source: &str,
@@ -145,33 +145,34 @@ pub fn execute_source(
     interpreter.execute_program(&program)
 }
 
-/// Try to load and execute .shællrc
+/// Try to load and execute ~/.shællrc.
 fn load_shaellrc(interpreter: &mut Interpreter) {
-    let rc_path = dirs_fallback();
-    if let Some(mut path) = rc_path {
-        path.push(".shællrc");
-        if path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&path) {
-                match execute_source(interpreter, &content) {
-                    Ok(_) => println!("Loaded {}", path.display()),
-                    Err(e) => {
-                        eprintln!("Warning: error in {}: {}", path.display(), e.message)
-                    }
-                }
-            }
+    let rc_path = home_dir().join(".shællrc");
+    if rc_path.exists() {
+        match std::fs::read_to_string(&rc_path) {
+            Ok(content) => match execute_source(interpreter, &content) {
+                Ok(_) => eprintln!("Loaded {}", rc_path.display()),
+                Err(e) => eprintln!("Warning: error in {}: {}", rc_path.display(), e.message),
+            },
+            Err(e) => eprintln!("Warning: cannot read {}: {}", rc_path.display(), e),
         }
     }
 }
 
-/// Get the home directory for .shællrc lookup
-fn dirs_fallback() -> Option<std::path::PathBuf> {
+/// Get the home directory.
+fn home_dir() -> std::path::PathBuf {
     std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
-        .ok()
         .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
 }
 
-/// Execute a Shæll script file
+/// Path to the history file.
+fn history_file() -> std::path::PathBuf {
+    home_dir().join(".shæll_history")
+}
+
+/// Execute a Shæll script file.
 pub fn execute_file(filepath: &str, _args: &[String]) -> Result<(), String> {
     let content = std::fs::read_to_string(filepath)
         .map_err(|e| format!("Cannot read file '{}': {}", filepath, e))?;
