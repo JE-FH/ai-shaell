@@ -1524,9 +1524,9 @@ mod builtin_integration {
     }
 
     #[test]
-    fn test_bang_in_expression_means_not() {
-        // ! in expression context still means logical not
-        assert_eq!(eval("not !true"), "true"); // not (not true) = not false = true
+    fn test_not_not_is_true() {
+        // not is the only logical negation; ! always means exec
+        assert_eq!(eval("not not true"), "true");
     }
 
     // ── bare-word args ──────────────────────────────────────

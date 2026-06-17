@@ -303,72 +303,61 @@ impl Value {
                         let p = path.clone();
                         Ok(heap.allocate(Value::NativeFunction(NativeFuncData {
                             name: "file::append".to_string(),
-                            func: std::rc::Rc::new(
-                                move |_heap: &GcHeap, args: &[ValueRef]| {
-                                    let data = _heap.with_ref(args[0], |v| v.to_sstring())?;
-                                    use std::io::Write;
-                                    let mut f = std::fs::OpenOptions::new()
-                                        .create(true)
-                                        .append(true)
-                                        .open(&p)
-                                        .map_err(|e| RuntimeError::new(format!("Cannot open: {}", e)))?;
-                                    f.write_all(data.as_bytes())
-                                        .map_err(|e| RuntimeError::new(format!("Cannot write: {}", e)))?;
-                                    Ok(_heap.allocate(Value::Null))
-                                },
-                            ),
+                            func: std::rc::Rc::new(move |_heap: &GcHeap, args: &[ValueRef]| {
+                                let data = _heap.with_ref(args[0], |v| v.to_sstring())?;
+                                use std::io::Write;
+                                let mut f = std::fs::OpenOptions::new()
+                                    .create(true)
+                                    .append(true)
+                                    .open(&p)
+                                    .map_err(|e| {
+                                        RuntimeError::new(format!("Cannot open: {}", e))
+                                    })?;
+                                f.write_all(data.as_bytes()).map_err(|e| {
+                                    RuntimeError::new(format!("Cannot write: {}", e))
+                                })?;
+                                Ok(_heap.allocate(Value::Null))
+                            }),
                         })))
                     }
                     "readToEnd" => {
                         let p = path.clone();
                         Ok(heap.allocate(Value::NativeFunction(NativeFuncData {
                             name: "file::readToEnd".to_string(),
-                            func: std::rc::Rc::new(
-                                move |_heap: &GcHeap, _args: &[ValueRef]| {
-                                    let content =
-                                        std::fs::read_to_string(&p).unwrap_or_default();
-                                    Ok(_heap.allocate(Value::String(content)))
-                                },
-                            ),
+                            func: std::rc::Rc::new(move |_heap: &GcHeap, _args: &[ValueRef]| {
+                                let content = std::fs::read_to_string(&p).unwrap_or_default();
+                                Ok(_heap.allocate(Value::String(content)))
+                            }),
                         })))
                     }
                     "exists" => {
                         let p = path.clone();
                         Ok(heap.allocate(Value::NativeFunction(NativeFuncData {
                             name: "file::exists".to_string(),
-                            func: std::rc::Rc::new(
-                                move |_heap: &GcHeap, _args: &[ValueRef]| {
-                                    Ok(_heap.allocate(Value::Bool(
-                                        std::path::Path::new(&p).exists(),
-                                    )))
-                                },
-                            ),
+                            func: std::rc::Rc::new(move |_heap: &GcHeap, _args: &[ValueRef]| {
+                                Ok(_heap.allocate(Value::Bool(std::path::Path::new(&p).exists())))
+                            }),
                         })))
                     }
                     "delete" => {
                         let p = path.clone();
                         Ok(heap.allocate(Value::NativeFunction(NativeFuncData {
                             name: "file::delete".to_string(),
-                            func: std::rc::Rc::new(
-                                move |_heap: &GcHeap, _args: &[ValueRef]| {
-                                    let _ = std::fs::remove_file(&p);
-                                    Ok(_heap.allocate(Value::Null))
-                                },
-                            ),
+                            func: std::rc::Rc::new(move |_heap: &GcHeap, _args: &[ValueRef]| {
+                                let _ = std::fs::remove_file(&p);
+                                Ok(_heap.allocate(Value::Null))
+                            }),
                         })))
                     }
                     "size" => {
                         let p = path.clone();
                         Ok(heap.allocate(Value::NativeFunction(NativeFuncData {
                             name: "file::size".to_string(),
-                            func: std::rc::Rc::new(
-                                move |_heap: &GcHeap, _args: &[ValueRef]| {
-                                    let sz = std::fs::metadata(&p)
-                                        .map(|m| m.len() as f64)
-                                        .unwrap_or(0.0);
-                                    Ok(_heap.allocate(Value::Number(sz)))
-                                },
-                            ),
+                            func: std::rc::Rc::new(move |_heap: &GcHeap, _args: &[ValueRef]| {
+                                let sz =
+                                    std::fs::metadata(&p).map(|m| m.len() as f64).unwrap_or(0.0);
+                                Ok(_heap.allocate(Value::Number(sz)))
+                            }),
                         })))
                     }
                     _ => Err(RuntimeError::new(format!(

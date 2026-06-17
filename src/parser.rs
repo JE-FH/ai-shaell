@@ -406,6 +406,88 @@ impl<'source> Parser<'source> {
     /// Greedily consumes tokens as literal string arguments until a
     /// delimiter (->, statement keyword, EOF) is hit.
     /// Tokens are rejoined from source spans to preserve original text.
+    /// Parse a bare command + args as an expression (stops at ), ], ,, :, RCurl).
+    fn parse_bare_cmd_expr(&mut self) -> ParseResult<ProgProgram> {
+        let program = {
+            let p = self.parse_prefix()?;
+            Box::new(self.parse_postfix(p)?)
+        };
+        let args = if self.check(&Token::With) {
+            self.advance();
+            self.expect(&Token::LParen)?;
+            let args = self.parse_inner_arg_list()?;
+            self.expect(&Token::RParen)?;
+            args
+        } else {
+            self.parse_bare_args_expr()?
+        };
+        Ok(ProgProgram {
+            program,
+            args,
+            pipe_target: None,
+            pipe_expr: None,
+        })
+    }
+
+    /// Parse bare args in expression context — stops at expression delimiters.
+    fn parse_bare_args_expr(&mut self) -> ParseResult<Vec<Expr>> {
+        let mut args = Vec::new();
+        let delimiters: &[Token] = &[
+            Token::Into,
+            Token::RParen,
+            Token::RSquare,
+            Token::Comma,
+            Token::Colon,
+            Token::RCurl,
+            Token::End,
+            Token::Then,
+            Token::Else,
+            Token::Do,
+            Token::In,
+        ];
+
+        loop {
+            // Skip whitespace/semicolons
+            while self.pos < self.tokens.len()
+                && (self.tokens[self.pos].token == Token::Whitespace
+                    || self.tokens[self.pos].token == Token::Semicolon)
+            {
+                self.pos += 1;
+            }
+            if self.pos >= self.tokens.len() {
+                break;
+            }
+            if delimiters.contains(&self.tokens[self.pos].token) {
+                break;
+            }
+            // Handle quoted strings
+            if self.tokens[self.pos].token == Token::DQuote {
+                self.pos += 1;
+                let expr = self.parse_string_literal()?;
+                args.push(expr);
+                continue;
+            }
+            // Collect consecutive non-whitespace, non-delimiter tokens
+            let start = self.tokens[self.pos].span.start;
+            while self.pos < self.tokens.len()
+                && self.tokens[self.pos].token != Token::Whitespace
+                && self.tokens[self.pos].token != Token::Semicolon
+                && !delimiters.contains(&self.tokens[self.pos].token)
+                && self.tokens[self.pos].token != Token::DQuote
+            {
+                self.pos += 1;
+            }
+            let end = self.tokens[self.pos - 1].span.end;
+            let text = self.source[start..end].to_string();
+            if !text.is_empty() {
+                args.push(Expr::String_(StringLit {
+                    parts: vec![StringPart::Text(text)],
+                }));
+            }
+        }
+        Ok(args)
+    }
+
     /// Parse a bare command + args inside !{cmd args}.
     fn parse_bare_cmd(&mut self) -> ParseResult<ProgProgram> {
         let program = {
@@ -656,20 +738,18 @@ impl<'source> Parser<'source> {
                 Ok(Expr::UnaryNot(Box::new(expr)))
             }
             Token::Bang => {
-                // In expression context:
-                // !{cmd args} → inline command substitution
-                // !expr        → logical not (same as 'not')
-                // Check the raw next token (before whitespace skip) for {
-                if self.pos < self.tokens.len() && self.tokens[self.pos].token == Token::LCurl
-                {
+                // ! always means exec, even in expression context.
+                // !{cmd args} → explicit inline command substitution
+                // !cmd args   → bare inline (stops at ), ], ,, :, end-of-expr)
+                if self.pos < self.tokens.len() && self.tokens[self.pos].token == Token::LCurl {
                     self.advance_raw(); // consume {
                     let cmd = self.parse_bare_cmd()?;
                     self.expect(&Token::RCurl)?;
                     Ok(Expr::CmdSub(cmd))
                 } else {
-                    let expr = self.parse_prefix()?;
-                    let expr = self.parse_postfix(expr)?;
-                    Ok(Expr::UnaryNot(Box::new(expr)))
+                    // Bare !cmd args — parse command + args, stop at expression delimiters
+                    let cmd = self.parse_bare_cmd_expr()?;
+                    Ok(Expr::CmdSub(cmd))
                 }
             }
             Token::Deref => {
