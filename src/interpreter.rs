@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::error::RuntimeError;
-use crate::gc::GcHeap;
+use crate::gc::{GcHeap, Remap};
 use crate::scope::{ScopeContext, ScopeManager};
 use crate::value::*;
 use std::cell::RefCell;
@@ -38,6 +38,27 @@ impl Interpreter {
         }
     }
 
+    /// After a GC compaction, remap all GcRefs in the scope stack
+    /// and return_value so they point to the new object locations.
+    fn fix_gc_roots(&mut self) {
+        let map = self.heap.last_forward_map.borrow();
+        if map.is_empty() {
+            return;
+        }
+        self.global_scope.borrow_mut().remap(&map);
+        self.scope_manager.remap(&map);
+        if let Some(ref mut rv) = self.return_value {
+            for &(old, new) in map.iter() {
+                if old == rv.offset() {
+                    *rv = ValueRef::from_offset(new);
+                    break;
+                }
+            }
+        }
+        drop(map);
+        self.heap.clear_forward_map();
+    }
+
     pub fn execute_program(&mut self, program: &Program) -> Result<ValueRef, RuntimeError> {
         if let Some(args_def) = &program.args {
             self.handle_program_args(args_def)?;
@@ -58,11 +79,13 @@ impl Interpreter {
 
     pub fn execute_statements(&mut self, stmts: &[Stmt]) -> Result<ValueRef, RuntimeError> {
         let mut last_value: ValueRef = self.heap.allocate(Value::Null);
+        self.fix_gc_roots();
         for stmt in stmts {
             if self.should_return || self.should_break {
                 break;
             }
             last_value = self.execute_statement(stmt)?;
+            self.fix_gc_roots();
         }
         Ok(last_value)
     }

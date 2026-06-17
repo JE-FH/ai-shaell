@@ -114,6 +114,9 @@ pub trait Remap {
     fn remap(&mut self, old_to_new: &[(usize, usize)]);
 }
 
+/// Callback type for post-collection root fixup.
+pub type PostCollectCallback = Box<dyn Fn(&[(usize, usize)])>;
+
 // Primitives
 macro_rules! impl_trivial {
     ($t:ty) => {
@@ -238,6 +241,10 @@ pub struct GcHeap {
     pub collections: Cell<usize>,
     pub bytes_allocated: Cell<usize>,
     pub bytes_freed: Cell<usize>,
+    /// Called after each collection with the forward map.
+    post_collect: RefCell<Option<PostCollectCallback>>,
+    /// Last collection's forward map, stored for external fixup.
+    pub(crate) last_forward_map: RefCell<Vec<(usize, usize)>>,
 }
 
 impl Default for GcHeap {
@@ -254,11 +261,34 @@ impl GcHeap {
             bump: Cell::new(0),
             free_head: Cell::new(0),
             alloc_count: Cell::new(0),
-            threshold: Cell::new(50_000),
+            threshold: Cell::new(2000),
             collections: Cell::new(0),
             bytes_allocated: Cell::new(0),
             bytes_freed: Cell::new(0),
+            post_collect: RefCell::new(None),
+            last_forward_map: RefCell::new(Vec::new()),
         }
+    }
+
+    /// Register a callback that runs after every GC collection.
+    /// The callback receives the forward map and should remap all
+    /// GcRef handles held outside the heap (scope variables, etc.).
+    pub fn on_post_collect(&self, cb: PostCollectCallback) {
+        *self.post_collect.borrow_mut() = Some(cb);
+    }
+
+    /// Apply the last GC forward map to external roots.
+    /// Call this after any operation that may have triggered a collection.
+    pub fn remap_roots<T: Remap>(&self, roots: &mut T) {
+        let map = self.last_forward_map.borrow();
+        if !map.is_empty() {
+            roots.remap(&map);
+        }
+    }
+
+    /// Clear the stored forward map (call after remapping roots).
+    pub fn clear_forward_map(&self) {
+        self.last_forward_map.borrow_mut().clear();
     }
 
     pub fn with_threshold(self, n: usize) -> Self {
@@ -464,6 +494,12 @@ impl GcHeap {
 
         // 4 ─ COMPACT
         self.compact(&forward_map);
+
+        // 5 ─ NOTIFY: store map and call fixup callback
+        *self.last_forward_map.borrow_mut() = forward_map.clone();
+        if let Some(ref cb) = *self.post_collect.borrow() {
+            cb(&forward_map);
+        }
 
         forward_map
     }
