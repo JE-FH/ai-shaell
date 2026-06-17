@@ -362,6 +362,7 @@ impl GcHeap {
     // ── allocate ────────────────────────────────────────────
 
     pub fn allocate<T: Trace + Remap + 'static>(&self, value: T) -> GcRef<T> {
+        debug_assert!(self.threshold.get() > 0, "GC threshold must be positive");
         self.maybe_collect(&[]);
 
         let obj_size = std::mem::size_of::<T>();
@@ -389,6 +390,10 @@ impl GcHeap {
             .set(self.bytes_allocated.get() + total_size);
         self.alloc_count.set(self.alloc_count.get() + 1);
 
+        debug_assert!(
+            !GcRef::<T>::from_offset(offset).is_null(),
+            "allocate returned null"
+        );
         GcRef::from_offset(offset)
     }
 
@@ -444,6 +449,10 @@ impl GcHeap {
     /// Run a closure with an immutable reference to the object.
     pub fn with_ref<T: 'static, R>(&self, handle: GcRef<T>, f: impl FnOnce(&T) -> R) -> R {
         assert!(!handle.is_null(), "null GcRef");
+        debug_assert!(
+            self.is_live_by_offset(handle.offset()),
+            "with_ref on dead object"
+        );
         self.with_buf(|buf| unsafe {
             let ptr = Self::data_ptr(buf, handle.offset) as *const T;
             f(&*ptr)
@@ -453,6 +462,10 @@ impl GcHeap {
     /// Run a closure with a mutable reference to the object.
     pub fn with_mut<T: 'static, R>(&self, handle: GcRef<T>, f: impl FnOnce(&mut T) -> R) -> R {
         assert!(!handle.is_null(), "null GcRef");
+        debug_assert!(
+            self.is_live_by_offset(handle.offset()),
+            "with_mut on dead object"
+        );
         self.with_buf_mut(|buf| unsafe {
             let ptr = Self::data_ptr_mut(buf, handle.offset) as *mut T;
             f(&mut *ptr)

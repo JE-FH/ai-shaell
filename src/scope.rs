@@ -36,6 +36,8 @@ impl ScopeContext {
     /// Declare a new value in this scope.
     /// Returns error if already declared in this scope.
     pub fn new_value(&mut self, key: &str, value: ValueRef) -> Result<ValueRef, RuntimeError> {
+        debug_assert!(!key.is_empty(), "new_value: key must not be empty");
+        debug_assert!(!value.is_null(), "new_value: value must not be null");
         if self.values.contains_key(key) {
             return Err(RuntimeError::new(format!(
                 "Variable '{}' already declared in this scope",
@@ -43,6 +45,10 @@ impl ScopeContext {
             )));
         }
         self.values.insert(key.to_string(), value);
+        debug_assert!(
+            self.values.contains_key(key),
+            "new_value: key not stored after insert"
+        );
         Ok(value)
     }
 
