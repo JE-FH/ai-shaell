@@ -18,7 +18,12 @@ pub fn execute_prog_program_strs(
 
     let mut cmd = std::process::Command::new(&program_path);
     cmd.args(arg_strings);
-    cmd.stdin(std::process::Stdio::piped());
+    // Only pipe stdin if we're feeding input; otherwise inherit terminal
+    cmd.stdin(if piped_input.is_some() {
+        std::process::Stdio::piped()
+    } else {
+        std::process::Stdio::inherit()
+    });
     cmd.stdout(if capture_output {
         std::process::Stdio::piped()
     } else {
@@ -72,7 +77,11 @@ pub fn execute_prog_program(
     // Run the program
     let mut cmd = Command::new(&program_path);
     cmd.args(&args);
-    cmd.stdin(Stdio::piped());
+    cmd.stdin(if piped_input.is_some() {
+        Stdio::piped()
+    } else {
+        Stdio::inherit()
+    });
     cmd.stdout(if capture_output {
         Stdio::piped()
     } else {
