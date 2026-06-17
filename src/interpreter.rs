@@ -997,12 +997,32 @@ impl Interpreter {
                             .with_ref(val, |v| v.to_sstring().unwrap_or_default());
                         inner_args.push(s);
                     }
-                    let (_rc, _) = pipe::execute_prog_program_strs(
+                    let (_rc, inner_stdout) = pipe::execute_prog_program_strs(
                         &self.heap,
                         inner_prog,
                         &inner_args,
                         stdout,
                     )?;
+                    // Handle the inner program's pipe_expr (e.g. -> let out)
+                    if let Some(target_expr) = &inner_prog.pipe_expr {
+                        let stdout_str = inner_stdout.unwrap_or_default();
+                        let value = self.heap.allocate(Value::String(stdout_str));
+                        match target_expr.as_ref() {
+                            Expr::Identifier(name) => {
+                                if self.scope_manager.get_value(name).is_some() {
+                                    self.scope_manager.set_value(name, value)?;
+                                } else {
+                                    self.scope_manager.new_top_level_value(name, value)?;
+                                }
+                            }
+                            Expr::Let(name) => {
+                                self.scope_manager.new_top_level_value(name, value)?;
+                            }
+                            _ => {
+                                return Err(RuntimeError::new("Invalid pipe target".to_string()));
+                            }
+                        }
+                    }
                 }
                 PipeTarget::PipeProgram(inner_pipe) => {
                     let _ = pipe::execute_pipe_program(&self.heap, inner_pipe)?;
