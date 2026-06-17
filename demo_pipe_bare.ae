@@ -1,0 +1,4 @@
+# Piping with bare args
+!echo hello world -> let first
+!echo goodbye world -> let second
+first + " | " + second

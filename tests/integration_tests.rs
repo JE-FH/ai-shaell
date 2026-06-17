@@ -1528,4 +1528,58 @@ mod builtin_integration {
         // ! in expression context still means logical not
         assert_eq!(eval("not !true"), "true"); // not (not true) = not false = true
     }
+
+    // ── bare-word args ──────────────────────────────────────
+
+    #[test]
+    fn test_bare_args_single() {
+        // !echo hello → single bare arg
+        let source = "!echo hello -> let out\nout";
+        assert!(eval(source).contains("hello"));
+    }
+
+    #[test]
+    fn test_bare_args_multiple() {
+        // !echo hello world → multiple bare args
+        let source = "!echo hello world -> let out\nout";
+        let result = eval(source);
+        assert!(result.contains("hello"));
+        assert!(result.contains("world"));
+    }
+
+    #[test]
+    fn test_bare_args_flags() {
+        // !ls -la → flags work as bare args
+        let source = "!echo -n test -> let out\nout";
+        assert_eq!(eval(source), "test");
+    }
+
+    #[test]
+    fn test_bare_args_paths() {
+        // !cat /dev/null → paths work
+        let source = "!echo /some/path -> let out\nout";
+        assert!(eval(source).contains("/some/path"));
+    }
+
+    #[test]
+    fn test_bare_args_double_dash() {
+        // !cmd --verbose → double-dash flags
+        let source = "!echo --verbose test -> let out\nout";
+        let result = eval(source);
+        assert!(result.contains("--verbose"));
+    }
+
+    #[test]
+    fn test_with_still_works() {
+        // !cmd with (args) still works alongside bare args
+        let source = "!echo with (\"explicit\") -> let out\nout";
+        assert!(eval(source).contains("explicit"));
+    }
+
+    #[test]
+    fn test_bare_args_empty_no_crash() {
+        // !cmd with no args and no pipe
+        let source = "!echo\n42";
+        assert_eq!(eval(source), "42");
+    }
 }

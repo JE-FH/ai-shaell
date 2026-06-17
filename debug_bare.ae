@@ -1,0 +1,2 @@
+!echo -n test -> let captured
+captured

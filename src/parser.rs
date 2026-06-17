@@ -101,7 +101,10 @@ impl<'source> Parser<'source> {
                 Token::Pipe => Stmt::PipeProgram(self.parse_pipe_program()?),
                 Token::Bang => {
                     self.advance(); // consume !
-                    let program = self.parse_expression(0)?;
+                                    // Parse only the program name (prefix), not a full expression.
+                                    // This prevents `-n` from being parsed as subtraction with the command.
+                    let program = self.parse_prefix()?;
+                    let program = self.parse_postfix(program)?;
                     let args = if self.check(&Token::With) {
                         self.advance();
                         self.expect(&Token::LParen)?;
@@ -109,7 +112,7 @@ impl<'source> Parser<'source> {
                         self.expect(&Token::RParen)?;
                         args
                     } else {
-                        vec![]
+                        self.parse_bare_args()?
                     };
                     let (pipe_target, pipe_expr) = if self.check(&Token::Into) {
                         self.advance();
@@ -283,7 +286,8 @@ impl<'source> Parser<'source> {
 
     fn parse_prog_program(&mut self) -> ParseResult<ProgProgram> {
         // Accept both exec and ! as program execution prefixes
-        if self.check(&Token::Exec) || self.check(&Token::Bang) {
+        let is_bang = self.check(&Token::Bang);
+        if self.check(&Token::Exec) || is_bang {
             self.advance();
         } else {
             return Err(ParseError::UnexpectedToken {
@@ -292,7 +296,10 @@ impl<'source> Parser<'source> {
                 span: self.peek().map(|t| t.span.clone()).unwrap_or(0..0),
             });
         }
-        let program = Box::new(self.parse_expression(0)?);
+        let program = {
+            let p = self.parse_prefix()?;
+            Box::new(self.parse_postfix(p)?)
+        };
 
         let args = if self.check(&Token::With) {
             self.advance();
@@ -300,6 +307,8 @@ impl<'source> Parser<'source> {
             let args = self.parse_inner_arg_list()?;
             self.expect(&Token::RParen)?;
             args
+        } else if is_bang {
+            self.parse_bare_args()?
         } else {
             Vec::new()
         };
@@ -326,7 +335,10 @@ impl<'source> Parser<'source> {
 
     fn parse_pipe_program(&mut self) -> ParseResult<PipeProgram> {
         self.expect(&Token::Pipe)?;
-        let program = Box::new(self.parse_expression(0)?);
+        let program = {
+            let p = self.parse_prefix()?;
+            Box::new(self.parse_postfix(p)?)
+        };
 
         let args = if self.check(&Token::With) {
             self.advance();
@@ -382,6 +394,87 @@ impl<'source> Parser<'source> {
                 self.advance();
             }
         }
+        Ok(args)
+    }
+
+    /// Parse bare-word arguments after !command.
+    /// Greedily consumes tokens as literal string arguments until a
+    /// delimiter (->, statement keyword, EOF) is hit.
+    /// Tokens are rejoined from source spans to preserve original text.
+    fn parse_bare_args(&mut self) -> ParseResult<Vec<Expr>> {
+        let mut args = Vec::new();
+        let delimiters: &[Token] = &[
+            Token::Into,
+            Token::End,
+            Token::Then,
+            Token::Else,
+            Token::Do,
+            Token::In,
+            Token::If,
+            Token::While,
+            Token::For,
+            Token::Foreach,
+            Token::Return,
+            Token::Fn,
+            Token::Let,
+            Token::Pipe,
+            Token::Exec,
+            Token::Bang,
+            Token::RCurl,
+        ];
+
+        loop {
+            // Skip leading whitespace; track if we crossed a newline
+            let mut crossed_newline = false;
+            while self.pos < self.tokens.len() && self.tokens[self.pos].token == Token::Whitespace {
+                let span = &self.tokens[self.pos].span;
+                if self.source[span.start..span.end].contains('\n') {
+                    crossed_newline = true;
+                }
+                self.pos += 1;
+            }
+
+            if self.pos >= self.tokens.len() {
+                break;
+            }
+
+            // Stop at delimiters or after a newline (statement boundary)
+            if delimiters.contains(&self.tokens[self.pos].token) {
+                break;
+            }
+            if crossed_newline {
+                break;
+            }
+
+            // Handle quoted strings: parse as proper string literal
+            if self.tokens[self.pos].token == Token::DQuote {
+                // Use the standard string parser
+                self.pos += 1; // skip opening DQuote
+                let expr = self.parse_string_literal()?;
+                args.push(expr);
+                continue;
+            }
+
+            // Collect consecutive non-whitespace, non-delimiter tokens
+            // into a single string argument
+            let start = self.tokens[self.pos].span.start;
+            while self.pos < self.tokens.len()
+                && self.tokens[self.pos].token != Token::Whitespace
+                && !delimiters.contains(&self.tokens[self.pos].token)
+                && self.tokens[self.pos].token != Token::DQuote
+            {
+                self.pos += 1;
+            }
+            let end = self.tokens[self.pos - 1].span.end;
+            let text = self.source[start..end].to_string();
+
+            if !text.is_empty() {
+                args.push(Expr::String_(StringLit {
+                    parts: vec![StringPart::Text(text)],
+                }));
+            }
+        }
+
         Ok(args)
     }
 

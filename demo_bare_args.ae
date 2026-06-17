@@ -1,0 +1,9 @@
+# Bare-word args: !command arg1 arg2 ...
+# No 'with' needed — just type words after the command
+
+!echo -n "Simple: " -> let a
+!echo -n "Flags: "   -> let b
+!echo -n "Paths: "   -> let c
+!echo -n "Multi: "   -> let d
+
+a + b + c + d

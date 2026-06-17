@@ -1,0 +1,3 @@
+# !command is now shorthand for exec
+!echo with ("hello from shæll") -> let captured
+"captured: " + captured
