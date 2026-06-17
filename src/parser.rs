@@ -406,6 +406,29 @@ impl<'source> Parser<'source> {
     /// Greedily consumes tokens as literal string arguments until a
     /// delimiter (->, statement keyword, EOF) is hit.
     /// Tokens are rejoined from source spans to preserve original text.
+    /// Parse a bare command + args inside !{cmd args}.
+    fn parse_bare_cmd(&mut self) -> ParseResult<ProgProgram> {
+        let program = {
+            let p = self.parse_prefix()?;
+            Box::new(self.parse_postfix(p)?)
+        };
+        let args = if self.check(&Token::With) {
+            self.advance();
+            self.expect(&Token::LParen)?;
+            let args = self.parse_inner_arg_list()?;
+            self.expect(&Token::RParen)?;
+            args
+        } else {
+            self.parse_bare_args()?
+        };
+        Ok(ProgProgram {
+            program,
+            args,
+            pipe_target: None,
+            pipe_expr: None,
+        })
+    }
+
     fn parse_bare_args(&mut self) -> ParseResult<Vec<Expr>> {
         let mut args = Vec::new();
         let delimiters: &[Token] = &[
@@ -633,10 +656,21 @@ impl<'source> Parser<'source> {
                 Ok(Expr::UnaryNot(Box::new(expr)))
             }
             Token::Bang => {
-                // In expression context, ! means logical not (same as 'not')
-                let expr = self.parse_prefix()?;
-                let expr = self.parse_postfix(expr)?;
-                Ok(Expr::UnaryNot(Box::new(expr)))
+                // In expression context:
+                // !{cmd args} → inline command substitution
+                // !expr        → logical not (same as 'not')
+                // Check the raw next token (before whitespace skip) for {
+                if self.pos < self.tokens.len() && self.tokens[self.pos].token == Token::LCurl
+                {
+                    self.advance_raw(); // consume {
+                    let cmd = self.parse_bare_cmd()?;
+                    self.expect(&Token::RCurl)?;
+                    Ok(Expr::CmdSub(cmd))
+                } else {
+                    let expr = self.parse_prefix()?;
+                    let expr = self.parse_postfix(expr)?;
+                    Ok(Expr::UnaryNot(Box::new(expr)))
+                }
             }
             Token::Deref => {
                 let expr = self.parse_prefix()?;

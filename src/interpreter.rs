@@ -488,6 +488,7 @@ impl Interpreter {
             Expr::Try(stmts) => self.execute_try(stmts),
 
             Expr::ProgProgram(prog) => self.execute_prog_program(prog),
+            Expr::CmdSub(prog) => self.execute_cmd_sub(prog),
         };
         if let Ok(ref val) = result {
             debug_assert!(
@@ -946,6 +947,31 @@ impl Interpreter {
             "execute_pipe_program_stmt: program expression is Null"
         );
         pipe::execute_pipe_program(&self.heap, prog)
+    }
+
+    /// Execute !{cmd args} — captures stdout and returns it as a string value.
+    fn execute_cmd_sub(&mut self, prog: &ProgProgram) -> Result<ValueRef, RuntimeError> {
+        use crate::pipe;
+        let mut arg_strings: Vec<String> = Vec::new();
+        for arg in &prog.args {
+            let val = self.eval_expression(arg)?;
+            let s = self
+                .heap
+                .with_ref(val, |v| v.to_sstring().unwrap_or_default());
+            arg_strings.push(s);
+        }
+        // Run with forced capture (CmdSub always captures stdout)
+        let program_path = pipe::resolve_program_path(&prog.program)?;
+        let mut cmd = std::process::Command::new(&program_path);
+        cmd.args(&arg_strings);
+        cmd.stdin(std::process::Stdio::inherit());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::inherit());
+        let output = cmd.output().map_err(|e| {
+            RuntimeError::new(format!("Failed to execute '{}': {}", program_path, e))
+        })?;
+        let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+        Ok(self.heap.allocate(Value::String(stdout_str)))
     }
 
     fn execute_prog_program(&mut self, prog: &ProgProgram) -> Result<ValueRef, RuntimeError> {

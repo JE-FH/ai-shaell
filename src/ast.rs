@@ -87,6 +87,9 @@ pub enum Expr {
 
     // === External program ===
     ProgProgram(ProgProgram),
+
+    // === Inline command substitution: !{cmd args} → stdout string ===
+    CmdSub(ProgProgram),
 }
 
 /// A string literal with parsed content
@@ -254,6 +257,7 @@ impl std::fmt::Display for Expr {
             Expr::AnonFnDef(_) => write!(f, "fn(...) ... end"),
             Expr::Try(_) => write!(f, "try ... end"),
             Expr::ProgProgram(_) => write!(f, "exec ..."),
+            Expr::CmdSub(_) => write!(f, "!{{...}}"),
         }
     }
 }
