@@ -77,6 +77,11 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_statement(&mut self) -> ParseResult<Option<Stmt>> {
+        // Pre-condition: should not be called at end of input
+        debug_assert!(
+            self.peek().is_some(),
+            "parse_statement called at end of input"
+        );
         let stmt = match self.peek() {
             Some(t) => match &t.token {
                 Token::If => Stmt::If(self.parse_if()?),
@@ -478,6 +483,12 @@ impl<'source> Parser<'source> {
             }
         }
 
+        // Post-condition: all args should be non-empty string literals
+        debug_assert!(
+            args.iter()
+                .all(|arg| matches!(arg, Expr::String_(sl) if !sl.parts.is_empty())),
+            "parse_bare_args: args should all be non-empty string literals"
+        );
         Ok(args)
     }
 
@@ -488,6 +499,12 @@ impl<'source> Parser<'source> {
     /// Parse an expression with precedence climbing.
     /// `min_prec` is the minimum precedence level to parse.
     pub fn parse_expression(&mut self, min_prec: u8) -> ParseResult<Expr> {
+        // Pre-condition: min_prec must be within the valid precedence range (0..=8)
+        debug_assert!(
+            min_prec <= 8,
+            "parse_expression: min_prec {} exceeds max precedence 8",
+            min_prec
+        );
         // Handle prefix atom
         let mut left = self.parse_prefix()?;
 
@@ -864,14 +881,29 @@ impl<'source> Parser<'source> {
     fn peek(&self) -> Option<&SpannedToken> {
         // Skip whitespace and semicolon tokens
         let mut pos = self.pos;
-        while pos < self.tokens.len() {
+        let result = loop {
+            if pos >= self.tokens.len() {
+                break None;
+            }
             let t = &self.tokens[pos].token;
             if t != &Token::Whitespace && t != &Token::Semicolon {
-                return Some(&self.tokens[pos]);
+                break Some(&self.tokens[pos]);
             }
             pos += 1;
-        }
-        None
+        };
+        // Post-condition: if Some, the returned token is never whitespace/semicolon;
+        // if None, all remaining tokens are whitespace/semicolon or stream is exhausted
+        debug_assert!(
+            match result {
+                Some(t) => t.token != Token::Whitespace && t.token != Token::Semicolon,
+                None => (self.pos..self.tokens.len()).all(|i| {
+                    let t = &self.tokens[i].token;
+                    t == &Token::Whitespace || t == &Token::Semicolon
+                }),
+            },
+            "peek post-condition violated"
+        );
+        result
     }
 
     fn check(&self, expected: &Token) -> bool {
@@ -921,8 +953,24 @@ impl<'source> Parser<'source> {
     }
 
     fn expect(&mut self, expected: &Token) -> ParseResult<&SpannedToken> {
+        // Pre-condition: current position is within valid bounds
+        debug_assert!(
+            self.pos <= self.tokens.len(),
+            "expect({:?}): position {} is past end (len {})",
+            expected,
+            self.pos,
+            self.tokens.len()
+        );
+        let pos_before = self.pos;
         if self.check(expected) {
-            Ok(self.advance())
+            self.advance();
+            // Post-condition: position advanced after consuming the token
+            debug_assert!(
+                self.pos > pos_before,
+                "expect({:?}) did not advance position",
+                expected
+            );
+            Ok(&self.tokens[self.pos - 1])
         } else {
             let found = self
                 .peek()

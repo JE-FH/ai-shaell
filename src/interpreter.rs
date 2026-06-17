@@ -28,14 +28,27 @@ impl Interpreter {
         let global_scope = Rc::new(RefCell::new(ScopeContext::new()));
         let mut scope_manager = ScopeManager::new();
         scope_manager.push_scope(global_scope.clone());
-        Interpreter {
+        let this = Interpreter {
             heap: GcHeap::new(),
             scope_manager,
             global_scope,
             return_value: None,
             should_return: false,
             should_break: false,
-        }
+        };
+        debug_assert!(
+            !this.should_return,
+            "new: should_return must be false initially"
+        );
+        debug_assert!(
+            !this.should_break,
+            "new: should_break must be false initially"
+        );
+        debug_assert!(
+            this.return_value.is_none(),
+            "new: return_value must be None initially"
+        );
+        this
     }
 
     /// After a GC compaction, remap all GcRefs in the scope stack
@@ -57,19 +70,35 @@ impl Interpreter {
         }
         drop(map);
         self.heap.clear_forward_map();
+        debug_assert!(
+            self.heap.last_forward_map.borrow().is_empty(),
+            "fix_gc_roots: forward map not cleared"
+        );
     }
 
     pub fn execute_program(&mut self, program: &Program) -> Result<ValueRef, RuntimeError> {
         if let Some(args_def) = &program.args {
             self.handle_program_args(args_def)?;
         }
-        self.execute_statements(&program.statements)
+        let result = self.execute_statements(&program.statements);
+        if let Ok(ref val) = result {
+            debug_assert!(
+                self.heap.is_live_by_offset(val.offset()),
+                "execute_program: result value is not live"
+            );
+        }
+        result
     }
 
     fn handle_program_args(&mut self, args_def: &ProgramArgs) -> Result<(), RuntimeError> {
         let table = self.heap.allocate(Value::table());
         self.scope_manager
             .new_top_level_value(&args_def.table_name, table)?;
+        debug_assert!(
+            self.scope_manager.get_value(&args_def.table_name).is_some(),
+            "handle_program_args: '{}' not in scope after insertion",
+            args_def.table_name
+        );
         Ok(())
     }
 
@@ -87,11 +116,15 @@ impl Interpreter {
             last_value = self.execute_statement(stmt)?;
             self.fix_gc_roots();
         }
+        debug_assert!(
+            self.heap.is_live_by_offset(last_value.offset()),
+            "execute_statements: last_value is not live"
+        );
         Ok(last_value)
     }
 
     fn execute_statement(&mut self, stmt: &Stmt) -> Result<ValueRef, RuntimeError> {
-        match stmt {
+        let result = match stmt {
             Stmt::Expr(expr) => self.eval_expression(expr),
             Stmt::If(if_stmt) => self.execute_if(if_stmt),
             Stmt::For(for_loop) => self.execute_for(for_loop),
@@ -118,7 +151,17 @@ impl Interpreter {
             }
             Stmt::FunctionDef(func_def) => self.execute_function_def(func_def),
             Stmt::PipeProgram(pipe) => self.execute_pipe_program_stmt(pipe),
-        }
+        };
+        // Post-condition: no invalid state after statement execution
+        debug_assert!(
+            !(self.should_return && self.should_break),
+            "execute_statement: cannot both return and break"
+        );
+        debug_assert!(
+            !self.should_return || self.return_value.is_some(),
+            "execute_statement: should_return set but return_value is None"
+        );
+        result
     }
 
     // ============================================================
@@ -131,19 +174,26 @@ impl Interpreter {
             .heap
             .with_ref(condition, |v| v.to_bool().unwrap_or(false));
 
-        if cond_bool {
+        let result = if cond_bool {
             self.scope_manager.push_new_scope();
-            let result = self.execute_statements(&if_stmt.then_body);
+            let r = self.execute_statements(&if_stmt.then_body);
             self.scope_manager.pop_scope();
-            result
+            r
         } else if let Some(else_body) = &if_stmt.else_body {
             self.scope_manager.push_new_scope();
-            let result = self.execute_statements(else_body);
+            let r = self.execute_statements(else_body);
             self.scope_manager.pop_scope();
-            result
+            r
         } else {
             Ok(self.heap.allocate(Value::Null))
+        };
+        if let Ok(ref val) = result {
+            debug_assert!(
+                self.heap.is_live_by_offset(val.offset()),
+                "execute_if: result value is not live"
+            );
         }
+        result
     }
 
     fn execute_while(&mut self, while_loop: &WhileLoop) -> Result<ValueRef, RuntimeError> {
@@ -167,6 +217,10 @@ impl Interpreter {
                 break;
             }
         }
+        debug_assert!(
+            self.heap.is_live_by_offset(last_value.offset()),
+            "execute_while: last_value is not live"
+        );
         Ok(last_value)
     }
 
@@ -193,6 +247,10 @@ impl Interpreter {
             }
             self.eval_expression(&for_loop.update)?;
         }
+        debug_assert!(
+            self.heap.is_live_by_offset(last_value.offset()),
+            "execute_for: last_value is not live"
+        );
         Ok(last_value)
     }
 
@@ -223,6 +281,10 @@ impl Interpreter {
                 break;
             }
         }
+        debug_assert!(
+            self.heap.is_live_by_offset(last_value.offset()),
+            "execute_foreach: last_value is not live"
+        );
         Ok(last_value)
     }
 
@@ -258,11 +320,19 @@ impl Interpreter {
                 break;
             }
         }
+        debug_assert!(
+            self.heap.is_live_by_offset(last_value.offset()),
+            "execute_foreach_kv: last_value is not live"
+        );
         Ok(last_value)
     }
 
     /// Extract keys from a collection for iteration.
     fn get_keys_for_collection(&self, collection: ValueRef) -> Result<Vec<ValueRef>, RuntimeError> {
+        debug_assert!(
+            self.heap.is_live_by_offset(collection.offset()),
+            "get_keys_for_collection: collection is not live"
+        );
         let coll_val = self.heap.with_ref(collection, |v| v.clone());
         coll_val.get_keys(&self.heap)
     }
@@ -281,6 +351,11 @@ impl Interpreter {
         let func_ref = self.heap.allocate(Value::Function(func));
         self.scope_manager
             .new_top_level_value(&func_def.name, func_ref)?;
+        debug_assert!(
+            self.scope_manager.get_value(&func_def.name).is_some(),
+            "execute_function_def: function '{}' not in scope after definition",
+            func_def.name
+        );
         Ok(self.heap.allocate(Value::Null))
     }
 
@@ -289,7 +364,7 @@ impl Interpreter {
     // ============================================================
 
     pub fn eval_expression(&mut self, expr: &Expr) -> Result<ValueRef, RuntimeError> {
-        match expr {
+        let result = match expr {
             Expr::Number(n) => Ok(self.heap.allocate(Value::Number(*n))),
             Expr::String_(s) => self.eval_string_literal(s),
             Expr::Boolean(b) => Ok(self.heap.allocate(Value::Bool(*b))),
@@ -413,7 +488,14 @@ impl Interpreter {
             Expr::Try(stmts) => self.execute_try(stmts),
 
             Expr::ProgProgram(prog) => self.execute_prog_program(prog),
+        };
+        if let Ok(ref val) = result {
+            debug_assert!(
+                self.heap.is_live_by_offset(val.offset()),
+                "eval_expression: returned value is not live"
+            );
         }
+        result
     }
 
     // ============================================================
@@ -437,7 +519,12 @@ impl Interpreter {
                 }
             }
         }
-        Ok(self.heap.allocate(Value::String(result)))
+        let allocated = self.heap.allocate(Value::String(result));
+        debug_assert!(
+            self.heap.is_live_by_offset(allocated.offset()),
+            "eval_string_literal: result is not live"
+        );
+        Ok(allocated)
     }
 
     // ============================================================
@@ -445,6 +532,7 @@ impl Interpreter {
     // ============================================================
 
     fn eval_identifier(&self, name: &str) -> Result<ValueRef, RuntimeError> {
+        debug_assert!(!name.is_empty(), "eval_identifier: name is empty");
         if let Some(val) = self.scope_manager.get_value(name) {
             return Ok(val);
         }
@@ -462,6 +550,23 @@ impl Interpreter {
 
         let lt = self.heap.with_ref(left, |v| v.get_type_name().to_string());
         let rt = self.heap.with_ref(right, |v| v.get_type_name().to_string());
+
+        debug_assert!(
+            matches!(
+                lt.as_str(),
+                "number" | "string" | "bstring" | "bool" | "null" | "file" | "table" | "function"
+            ),
+            "eval_add: left operand has unknown type '{}'",
+            lt
+        );
+        debug_assert!(
+            matches!(
+                rt.as_str(),
+                "number" | "string" | "bstring" | "bool" | "null" | "file" | "table" | "function"
+            ),
+            "eval_add: right operand has unknown type '{}'",
+            rt
+        );
 
         // String concatenation
         if lt == "string" || lt == "bstring" || rt == "string" || rt == "bstring" {
@@ -486,6 +591,23 @@ impl Interpreter {
 
         let lt = self.heap.with_ref(left, |v| v.get_type_name().to_string());
         let rt = self.heap.with_ref(right, |v| v.get_type_name().to_string());
+
+        debug_assert!(
+            matches!(
+                lt.as_str(),
+                "number" | "string" | "bstring" | "bool" | "null" | "file" | "table" | "function"
+            ),
+            "eval_mult: left operand has unknown type '{}'",
+            lt
+        );
+        debug_assert!(
+            matches!(
+                rt.as_str(),
+                "number" | "string" | "bstring" | "bool" | "null" | "file" | "table" | "function"
+            ),
+            "eval_mult: right operand has unknown type '{}'",
+            rt
+        );
 
         if lt == "string" && rt == "number" {
             let s = self
@@ -513,6 +635,14 @@ impl Interpreter {
     {
         let left = self.eval_expression(l)?;
         let right = self.eval_expression(r)?;
+        debug_assert!(
+            self.heap.with_ref(left, |v| v.to_number().is_ok()),
+            "eval_arithmetic: left operand is not a number"
+        );
+        debug_assert!(
+            self.heap.with_ref(right, |v| v.to_number().is_ok()),
+            "eval_arithmetic: right operand is not a number"
+        );
         let ln = self.heap.with_ref(left, |v| v.to_number())?;
         let rn = self.heap.with_ref(right, |v| v.to_number())?;
         Ok(self.heap.allocate(Value::Number(op(ln, rn))))
@@ -524,6 +654,14 @@ impl Interpreter {
     {
         let left = self.eval_expression(l)?;
         let right = self.eval_expression(r)?;
+        debug_assert!(
+            self.heap.is_live_by_offset(left.offset()),
+            "eval_comparison: left operand is not live"
+        );
+        debug_assert!(
+            self.heap.is_live_by_offset(right.offset()),
+            "eval_comparison: right operand is not live"
+        );
         if let (Ok(ln), Ok(rn)) = (
             self.heap.with_ref(left, |v| v.to_number()),
             self.heap.with_ref(right, |v| v.to_number()),
@@ -544,6 +682,14 @@ impl Interpreter {
     fn eval_equality(&mut self, l: &Expr, r: &Expr) -> Result<ValueRef, RuntimeError> {
         let left = self.eval_expression(l)?;
         let right = self.eval_expression(r)?;
+        debug_assert!(
+            self.heap.is_live_by_offset(left.offset()),
+            "eval_equality: left operand is not live"
+        );
+        debug_assert!(
+            self.heap.is_live_by_offset(right.offset()),
+            "eval_equality: right operand is not live"
+        );
         let lv = self.heap.with_ref(left, |v| v.clone());
         let rv = self.heap.with_ref(right, |v| v.clone());
         let is_equal = lv.is_equal(&rv)?;
@@ -554,22 +700,42 @@ impl Interpreter {
         let left = self.eval_expression(l)?;
         let lb = self.heap.with_ref(left, |v| v.to_bool().unwrap_or(false));
         if !lb {
-            return Ok(self.heap.allocate(Value::Bool(false)));
+            let result = self.heap.allocate(Value::Bool(false));
+            debug_assert!(
+                self.heap.is_live_by_offset(result.offset()),
+                "eval_logical_and: result is not live"
+            );
+            return Ok(result);
         }
         let right = self.eval_expression(r)?;
         let rb = self.heap.with_ref(right, |v| v.to_bool().unwrap_or(false));
-        Ok(self.heap.allocate(Value::Bool(rb)))
+        let result = self.heap.allocate(Value::Bool(rb));
+        debug_assert!(
+            self.heap.is_live_by_offset(result.offset()),
+            "eval_logical_and: result is not live"
+        );
+        Ok(result)
     }
 
     fn eval_logical_or(&mut self, l: &Expr, r: &Expr) -> Result<ValueRef, RuntimeError> {
         let left = self.eval_expression(l)?;
         let lb = self.heap.with_ref(left, |v| v.to_bool().unwrap_or(false));
         if lb {
-            return Ok(self.heap.allocate(Value::Bool(true)));
+            let result = self.heap.allocate(Value::Bool(true));
+            debug_assert!(
+                self.heap.is_live_by_offset(result.offset()),
+                "eval_logical_or: result is not live"
+            );
+            return Ok(result);
         }
         let right = self.eval_expression(r)?;
         let rb = self.heap.with_ref(right, |v| v.to_bool().unwrap_or(false));
-        Ok(self.heap.allocate(Value::Bool(rb)))
+        let result = self.heap.allocate(Value::Bool(rb));
+        debug_assert!(
+            self.heap.is_live_by_offset(result.offset()),
+            "eval_logical_or: result is not live"
+        );
+        Ok(result)
     }
 
     // ============================================================
@@ -578,6 +744,10 @@ impl Interpreter {
 
     fn eval_assign(&mut self, target: &Expr, value: &Expr) -> Result<ValueRef, RuntimeError> {
         let val = self.eval_expression(value)?;
+        debug_assert!(
+            self.heap.is_live_by_offset(val.offset()),
+            "eval_assign: value is not live"
+        );
         match target {
             Expr::Identifier(name) => {
                 if self.scope_manager.get_value(name).is_some() {
@@ -610,6 +780,10 @@ impl Interpreter {
         value: &Expr,
         op: CompoundOp,
     ) -> Result<ValueRef, RuntimeError> {
+        debug_assert!(
+            !matches!(target, Expr::Null),
+            "eval_compound_assign: target is Null"
+        );
         let current = match target {
             Expr::Identifier(name) => self.eval_identifier(name)?,
             Expr::IndexColon(obj_expr, key) => {
@@ -653,6 +827,10 @@ impl Interpreter {
             }
             _ => {}
         }
+        debug_assert!(
+            self.heap.is_live_by_offset(result.offset()),
+            "eval_compound_assign: result is not live"
+        );
         Ok(result)
     }
 
@@ -663,6 +841,14 @@ impl Interpreter {
         right: ValueRef,
         op: CompoundOp,
     ) -> Result<ValueRef, RuntimeError> {
+        debug_assert!(
+            self.heap.is_live_by_offset(left.offset()),
+            "apply_compound_op: left operand is not live"
+        );
+        debug_assert!(
+            self.heap.is_live_by_offset(right.offset()),
+            "apply_compound_op: right operand is not live"
+        );
         match op {
             CompoundOp::Add => {
                 let lt = self.heap.with_ref(left, |v| v.get_type_name().to_string());
@@ -742,6 +928,10 @@ impl Interpreter {
                 })?;
             }
         }
+        debug_assert!(
+            self.heap.is_live_by_offset(result_table.offset()),
+            "execute_try: result_table is not live"
+        );
         Ok(result_table)
     }
 
@@ -751,11 +941,19 @@ impl Interpreter {
 
     fn execute_pipe_program_stmt(&mut self, prog: &PipeProgram) -> Result<ValueRef, RuntimeError> {
         use crate::pipe;
+        debug_assert!(
+            !matches!(*prog.program, Expr::Null),
+            "execute_pipe_program_stmt: program expression is Null"
+        );
         pipe::execute_pipe_program(&self.heap, prog)
     }
 
     fn execute_prog_program(&mut self, prog: &ProgProgram) -> Result<ValueRef, RuntimeError> {
         use crate::pipe;
+        debug_assert!(
+            !matches!(*prog.program, Expr::Null),
+            "execute_prog_program: program expression is Null"
+        );
         // Evaluate arg expressions to strings
         let mut arg_strings: Vec<String> = Vec::new();
         for arg in &prog.args {
@@ -824,6 +1022,11 @@ impl Interpreter {
         func_val: ValueRef,
         args: &[ValueRef],
     ) -> Result<ValueRef, RuntimeError> {
+        debug_assert!(!func_val.is_null(), "call_value: func_val GcRef is null");
+        debug_assert!(
+            !self.heap.with_ref(func_val, |v| matches!(v, Value::Null)),
+            "call_value: func_val points to Value::Null"
+        );
         let kind = self.get_callable_kind(func_val);
         match kind {
             CallableKind::User(fd) => self.call_user_func(&fd, args),
@@ -833,6 +1036,7 @@ impl Interpreter {
     }
 
     fn get_callable_kind(&self, func_val: ValueRef) -> CallableKind {
+        debug_assert!(!func_val.is_null(), "get_callable_kind: func_val is null");
         self.heap.with_ref(func_val, |v| match v {
             Value::Function(f) => CallableKind::User(f.clone()),
             Value::NativeFunction(n) => CallableKind::Native(n.func.clone()),
@@ -845,6 +1049,7 @@ impl Interpreter {
         func: &FuncData,
         args: &[ValueRef],
     ) -> Result<ValueRef, RuntimeError> {
+        debug_assert!(!func.name.is_empty(), "call_user_func: func name is empty");
         let saved_scope = self.scope_manager.copy_scopes();
         let old_return_value = self.return_value.take();
         let old_should_return = self.should_return;
@@ -886,6 +1091,14 @@ impl Interpreter {
         self.should_return = old_should_return;
         self.should_break = old_should_break;
 
+        debug_assert!(
+            self.heap.is_live_by_offset(final_value.offset()),
+            "call_user_func: final_value is not live"
+        );
+        debug_assert!(
+            !(self.should_return && self.should_break),
+            "call_user_func: both should_return and should_break set after restore"
+        );
         Ok(final_value)
     }
 }
