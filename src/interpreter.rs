@@ -284,7 +284,7 @@ impl Interpreter {
                 let n = self.heap.with_ref(val, |v| v.to_number())?;
                 Ok(self.heap.allocate(Value::Number(n)))
             }
-            Expr::UnaryLNot(e) => {
+            Expr::UnaryNot(e) => {
                 let val = self.eval_expression(e)?;
                 let b = self.heap.with_ref(val, |v| v.to_bool().unwrap_or(false));
                 Ok(self.heap.allocate(Value::Bool(!b)))

@@ -207,7 +207,7 @@ mod arithmetic_tests {
     }
     #[test]
     fn test_precedence_not_eq() {
-        assert_eq!(eval("!true == false"), "true");
+        assert_eq!(eval("not true == false"), "true");
     }
     #[test]
     fn test_precedence_assignment_low() {
@@ -492,8 +492,8 @@ mod logical_tests {
 
     #[test]
     fn test_logical_not() {
-        assert_eq!(eval("!true"), "false");
-        assert_eq!(eval("!false"), "true");
+        assert_eq!(eval("not true"), "false");
+        assert_eq!(eval("not false"), "true");
     }
 
     #[test]
@@ -522,8 +522,8 @@ mod logical_tests {
 
     #[test]
     fn test_parse_not_of_comparison() {
-        assert_eq!(eval("!(5 > 3)"), "false");
-        assert_eq!(eval("!(5 < 3)"), "true");
+        assert_eq!(eval("not (5 > 3)"), "false");
+        assert_eq!(eval("not (5 < 3)"), "true");
     }
 }
 
@@ -1155,19 +1155,19 @@ mod unary_tests {
 
     #[test]
     fn test_unary_not_on_number() {
-        assert_eq!(eval("!0"), "true");
+        assert_eq!(eval("not 0"), "true");
     }
     #[test]
     fn test_unary_not_on_nonzero() {
-        assert_eq!(eval("!42"), "false");
+        assert_eq!(eval("not 42"), "false");
     }
     #[test]
     fn test_unary_not_on_string() {
-        assert_eq!(eval("!\"\""), "true");
+        assert_eq!(eval("not \"\""), "true");
     }
     #[test]
     fn test_unary_not_double() {
-        assert_eq!(eval("!!true"), "true");
+        assert_eq!(eval("not not true"), "true");
     }
     #[test]
     fn test_unary_plus_on_number() {
@@ -1495,5 +1495,37 @@ mod builtin_integration {
         let source = "exec echo with (\"captured\") -> let result\nresult";
         let output = eval(source);
         assert!(output.contains("captured"));
+    }
+
+    // ── !command shorthand ──────────────────────────────────
+
+    #[test]
+    fn test_bang_exec() {
+        // !echo hello → exec echo with ("hello")
+        let source = "!echo with (\"hello\") -> let out\nout";
+        let result = eval(source);
+        assert!(result.contains("hello"));
+    }
+
+    #[test]
+    fn test_bang_piping() {
+        // !echo -> let capture tests both !exec and pipe-to-variable
+        let source = "!echo with (\"piped\") -> let out\nout";
+        let result = eval(source);
+        assert!(result.contains("piped"));
+    }
+
+    #[test]
+    fn test_not_keyword() {
+        // 'not' keyword replaces ! for logical not
+        assert_eq!(eval("not true"), "false");
+        assert_eq!(eval("not false"), "true");
+        assert_eq!(eval("not not true"), "true");
+    }
+
+    #[test]
+    fn test_bang_in_expression_means_not() {
+        // ! in expression context still means logical not
+        assert_eq!(eval("not !true"), "true"); // not (not true) = not false = true
     }
 }

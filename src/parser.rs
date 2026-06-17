@@ -99,6 +99,39 @@ impl<'source> Parser<'source> {
                 }
                 Token::Fn => Stmt::FunctionDef(self.parse_function_def()?),
                 Token::Pipe => Stmt::PipeProgram(self.parse_pipe_program()?),
+                Token::Bang => {
+                    self.advance(); // consume !
+                    let program = self.parse_expression(0)?;
+                    let args = if self.check(&Token::With) {
+                        self.advance();
+                        self.expect(&Token::LParen)?;
+                        let args = self.parse_inner_arg_list()?;
+                        self.expect(&Token::RParen)?;
+                        args
+                    } else {
+                        vec![]
+                    };
+                    let (pipe_target, pipe_expr) = if self.check(&Token::Into) {
+                        self.advance();
+                        if self.check(&Token::Bang)
+                            || self.check(&Token::Exec)
+                            || self.check(&Token::Pipe)
+                        {
+                            (Some(Box::new(self.parse_pipe_target()?)), None)
+                        } else {
+                            let expr = self.parse_expression(0)?;
+                            (None, Some(Box::new(expr)))
+                        }
+                    } else {
+                        (None, None)
+                    };
+                    Stmt::Expr(Expr::ProgProgram(ProgProgram {
+                        program: Box::new(program),
+                        args,
+                        pipe_target,
+                        pipe_expr,
+                    }))
+                }
                 Token::End | Token::RCurl => return Ok(None),
                 _ => Stmt::Expr(self.parse_expression(0)?),
             },
@@ -249,7 +282,16 @@ impl<'source> Parser<'source> {
     // ============================================================
 
     fn parse_prog_program(&mut self) -> ParseResult<ProgProgram> {
-        self.expect(&Token::Exec)?;
+        // Accept both exec and ! as program execution prefixes
+        if self.check(&Token::Exec) || self.check(&Token::Bang) {
+            self.advance();
+        } else {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'exec' or '!'".to_string(),
+                found: self.peek().map(|t| t.token.to_string()).unwrap_or_default(),
+                span: self.peek().map(|t| t.span.clone()).unwrap_or(0..0),
+            });
+        }
         let program = Box::new(self.parse_expression(0)?);
 
         let args = if self.check(&Token::With) {
@@ -264,7 +306,7 @@ impl<'source> Parser<'source> {
 
         let (pipe_target, pipe_expr) = if self.check(&Token::Into) {
             self.advance();
-            if self.check(&Token::Exec) || self.check(&Token::Pipe) {
+            if self.check(&Token::Exec) || self.check(&Token::Bang) || self.check(&Token::Pipe) {
                 (Some(Box::new(self.parse_pipe_target()?)), None)
             } else {
                 let expr = self.parse_expression(0)?;
@@ -310,7 +352,7 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_pipe_target(&mut self) -> ParseResult<PipeTarget> {
-        if self.check(&Token::Exec) {
+        if self.check(&Token::Exec) || self.check(&Token::Bang) {
             Ok(PipeTarget::ProgProgram(self.parse_prog_program()?))
         } else {
             Ok(PipeTarget::PipeProgram(self.parse_pipe_program()?))
@@ -321,7 +363,7 @@ impl<'source> Parser<'source> {
         let stream_name = self.expect_identifier()?;
         self.expect(&Token::Into)?;
 
-        if self.check(&Token::Exec) || self.check(&Token::Pipe) {
+        if self.check(&Token::Exec) || self.check(&Token::Bang) || self.check(&Token::Pipe) {
             Ok(PipeDesc::IntoPipe(stream_name, self.parse_pipe_target()?))
         } else {
             let expr = self.parse_expression(0)?;
@@ -472,10 +514,16 @@ impl<'source> Parser<'source> {
                 let expr = self.parse_postfix(expr)?;
                 Ok(Expr::UnaryPlus(Box::new(expr)))
             }
-            Token::LNot => {
+            Token::Not => {
                 let expr = self.parse_prefix()?;
                 let expr = self.parse_postfix(expr)?;
-                Ok(Expr::UnaryLNot(Box::new(expr)))
+                Ok(Expr::UnaryNot(Box::new(expr)))
+            }
+            Token::Bang => {
+                // In expression context, ! means logical not (same as 'not')
+                let expr = self.parse_prefix()?;
+                let expr = self.parse_postfix(expr)?;
+                Ok(Expr::UnaryNot(Box::new(expr)))
             }
             Token::Deref => {
                 let expr = self.parse_prefix()?;
@@ -520,7 +568,10 @@ impl<'source> Parser<'source> {
 
                 let (pipe_target, pipe_expr) = if self.check(&Token::Into) {
                     self.advance();
-                    if self.check(&Token::Exec) || self.check(&Token::Pipe) {
+                    if self.check(&Token::Exec)
+                        || self.check(&Token::Bang)
+                        || self.check(&Token::Pipe)
+                    {
                         (Some(Box::new(self.parse_pipe_target()?)), None)
                     } else {
                         let expr = self.parse_expression(0)?;

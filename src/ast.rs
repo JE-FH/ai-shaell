@@ -48,7 +48,7 @@ pub enum Expr {
     IndexColon(Box<Expr>, String),        // expr:identifier
     IndexSubscript(Box<Expr>, Box<Expr>), // expr[expr]
     Call(Box<Expr>, Vec<Expr>),           // expr(args)
-    UnaryLNot(Box<Expr>),                 // !expr
+    UnaryNot(Box<Expr>),                  // not expr
     UnaryNeg(Box<Expr>),                  // -expr
     UnaryPlus(Box<Expr>),                 // +expr
     Pow(Box<Expr>, Box<Expr>),            // expr ** expr
@@ -225,7 +225,7 @@ impl std::fmt::Display for Expr {
             Expr::IndexColon(e, key) => write!(f, "({}):{}", e, key),
             Expr::IndexSubscript(e, idx) => write!(f, "({})[{}]", e, idx),
             Expr::Call(e, args) => write!(f, "{}({:?})", e, args),
-            Expr::UnaryLNot(e) => write!(f, "!({})", e),
+            Expr::UnaryNot(e) => write!(f, "not({})", e),
             Expr::UnaryNeg(e) => write!(f, "-({})", e),
             Expr::UnaryPlus(e) => write!(f, "+({})", e),
             Expr::Pow(l, r) => write!(f, "({} ** {})", l, r),

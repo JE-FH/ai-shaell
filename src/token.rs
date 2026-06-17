@@ -36,6 +36,8 @@ pub enum Token {
     Fn,
     #[token("let")]
     Let,
+    #[token("not")]
+    Not,
     #[token("false")]
     False,
     #[token("true")]
@@ -89,7 +91,7 @@ pub enum Token {
     #[token("-")]
     Minus,
     #[token("!")]
-    LNot,
+    Bang,
     #[token("<")]
     LT,
     #[token(">")]
@@ -187,7 +189,8 @@ impl std::fmt::Display for Token {
             Token::Mod => write!(f, "'%'"),
             Token::Plus => write!(f, "'+'"),
             Token::Minus => write!(f, "'-'"),
-            Token::LNot => write!(f, "'!'"),
+            Token::Bang => write!(f, "'!'"),
+            Token::Not => write!(f, "'not'"),
             Token::LT => write!(f, "'<'"),
             Token::GT => write!(f, "'>'"),
             Token::GEQ => write!(f, "'>='"),
