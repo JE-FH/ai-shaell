@@ -6,6 +6,51 @@ use crate::error::RuntimeError;
 use crate::gc::GcHeap;
 use crate::value::*;
 
+/// Execute a ProgProgram with pre-evaluated string arguments.
+pub fn execute_prog_program_strs(
+    _heap: &GcHeap,
+    prog: &ProgProgram,
+    arg_strings: &[String],
+    piped_input: Option<String>,
+) -> Result<(i32, Option<String>), RuntimeError> {
+    let program_path = resolve_program_path(&prog.program)?;
+    let capture_output = prog.pipe_target.is_some() || prog.pipe_expr.is_some();
+
+    let mut cmd = std::process::Command::new(&program_path);
+    cmd.args(arg_strings);
+    cmd.stdin(std::process::Stdio::piped());
+    cmd.stdout(if capture_output {
+        std::process::Stdio::piped()
+    } else {
+        std::process::Stdio::inherit()
+    });
+    cmd.stderr(std::process::Stdio::inherit());
+
+    let mut child = cmd.spawn().map_err(|e| {
+        RuntimeError::new(format!("Failed to execute '{}': {}", program_path, e))
+    })?;
+
+    if let Some(input) = piped_input {
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            stdin.write_all(input.as_bytes()).ok();
+        }
+    }
+
+    let output = child.wait_with_output().map_err(|e| {
+        RuntimeError::new(format!("Failed to wait for '{}': {}", program_path, e))
+    })?;
+
+    let return_code = output.status.code().unwrap_or(1);
+    let stdout_str = if capture_output {
+        Some(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        None
+    };
+
+    Ok((return_code, stdout_str))
+}
+
 /// Execute a ProgProgram (exec ... with (args) -> ...)
 pub fn execute_prog_program(
     _heap: &GcHeap,
@@ -185,11 +230,11 @@ fn expr_to_string(expr: &Expr) -> Result<String, RuntimeError> {
 /// Execute the full simple piping chain.
 /// Returns (return_code, final_stdout).
 pub fn run_simple_pipeline(
-    heap: &GcHeap,
+    _heap: &GcHeap,
     prog: &ProgProgram,
     piped_input: Option<String>,
 ) -> Result<(i32, Option<String>), RuntimeError> {
-    let (return_code, stdout) = execute_prog_program(heap, prog, piped_input)?;
+    let (return_code, stdout) = execute_prog_program(_heap, prog, piped_input)?;
 
     // If there's a pipe target, pipe stdout into it
     if let Some(target) = &prog.pipe_target {
@@ -201,7 +246,7 @@ pub fn run_simple_pipeline(
                 ));
             }
         };
-        return run_simple_pipeline(heap, inner_prog, stdout);
+        return run_simple_pipeline(_heap, inner_prog, stdout);
     }
 
     Ok((return_code, stdout))

@@ -1,0 +1,9 @@
+let a = 1
+let msg = "hello"
+
+# !cmd with(expr) — expressions are evaluated
+!echo with (a) -> let out_a
+!echo with (msg) -> let out_msg
+!echo with (a + 2) -> let out_expr
+
+out_a + " " + out_msg + " " + out_expr

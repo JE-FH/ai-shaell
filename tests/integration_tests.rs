@@ -1578,8 +1578,51 @@ mod builtin_integration {
 
     #[test]
     fn test_bare_args_empty_no_crash() {
-        // !cmd with no args and no pipe
         let source = "!echo\n42";
         assert_eq!(eval(source), "42");
+    }
+
+    // ── regression: !cmd with(expr) evaluates expressions ───
+
+    #[test]
+    fn test_with_evaluates_variable() {
+        // !echo with(a) should print value of a, not literal "a"
+        let source = "let a = 1\n!echo with (a) -> let out\nout";
+        let result = eval(source);
+        assert!(result.contains("1"), "expected '1' from variable, got: {}", result);
+    }
+
+    #[test]
+    fn test_with_evaluates_expression() {
+        // !echo with(a + 2) should evaluate a + 2
+        let source = "let x = 5\n!echo with (x + 3) -> let out\nout";
+        let result = eval(source);
+        assert!(result.contains("8"), "expected '8' from 5+3, got: {}", result);
+    }
+
+    #[test]
+    fn test_with_evaluates_string_var() {
+        // !echo with(msg) should print value of string variable
+        let source = "let msg = \"hello\"\n!echo with (msg) -> let out\nout";
+        let result = eval(source);
+        assert!(result.contains("hello"), "expected 'hello', got: {}", result);
+    }
+
+    #[test]
+    fn test_bare_args_are_literals() {
+        // Bare args after !command are literal, not evaluated
+        // a is just passed as the string "a", not the variable value
+        let source = "let a = 999\n!echo a -> let out\nout";
+        let result = eval(source);
+        assert!(result.contains("a"), "bare 'a' should be literal, got: {}", result);
+    }
+
+    #[test]
+    fn test_not_works_in_repl() {
+        // 'not' keyword should work standalone
+        assert_eq!(eval("not 1"), "false");
+        assert_eq!(eval("not 0"), "true");
+        assert_eq!(eval("not true"), "false");
+        assert_eq!(eval("not false"), "true");
     }
 }

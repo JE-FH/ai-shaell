@@ -733,7 +733,15 @@ impl Interpreter {
 
     fn execute_prog_program(&mut self, prog: &ProgProgram) -> Result<ValueRef, RuntimeError> {
         use crate::pipe;
-        let (return_code, stdout) = pipe::execute_prog_program(&self.heap, prog, None)?;
+        // Evaluate arg expressions to strings
+        let mut arg_strings: Vec<String> = Vec::new();
+        for arg in &prog.args {
+            let val = self.eval_expression(arg)?;
+            let s = self.heap.with_ref(val, |v| v.to_sstring().unwrap_or_default());
+            arg_strings.push(s);
+        }
+        let (return_code, stdout) =
+            pipe::execute_prog_program_strs(&self.heap, prog, &arg_strings, None)?;
 
         if let Some(target_expr) = &prog.pipe_expr {
             let stdout_str = stdout.clone().unwrap_or_default();
@@ -758,7 +766,20 @@ impl Interpreter {
         if let Some(target) = &prog.pipe_target {
             match target.as_ref() {
                 PipeTarget::ProgProgram(inner_prog) => {
-                    let (_rc, _) = pipe::execute_prog_program(&self.heap, inner_prog, stdout)?;
+                    let mut inner_args: Vec<String> = Vec::new();
+                    for arg in &inner_prog.args {
+                        let val = self.eval_expression(arg)?;
+                        let s = self
+                            .heap
+                            .with_ref(val, |v| v.to_sstring().unwrap_or_default());
+                        inner_args.push(s);
+                    }
+                    let (_rc, _) = pipe::execute_prog_program_strs(
+                        &self.heap,
+                        inner_prog,
+                        &inner_args,
+                        stdout,
+                    )?;
                 }
                 PipeTarget::PipeProgram(inner_pipe) => {
                     let _ = pipe::execute_pipe_program(&self.heap, inner_pipe)?;
